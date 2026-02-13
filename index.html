@@ -1,14 +1,14 @@
-<!DOCTYPE html>
+    <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fantasy Duel: Battle for the Base</title>
+    <title>Fantasy Duel: MultiPlayer</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #1a2b1a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
         canvas { display: block; width: 100vw; height: 100vh; image-rendering: -webkit-optimize-contrast; touch-action: none; }
         
-        /* Интерфейс во время игры */
         .hp-container {
             position: absolute; width: 140px; height: 16px;
             background: rgba(0,0,0,0.6); border: 2px solid #fff; border-radius: 10px;
@@ -30,10 +30,10 @@
         .card { 
             width: 80px; height: 80px; background: #5d4037; border: 4px solid #fff; border-radius: 50%; 
             display: flex; align-items: center; justify-content: center; color: #fff; cursor: pointer;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.4); active { transform: scale(0.9); }
+            box-shadow: 0 5px 15px rgba(0,0,0,0.4);
         }
+        .card:active { transform: scale(0.9); }
 
-        /* Экраны Меню, Победы и Поражения */
         .overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(5px);
@@ -42,12 +42,14 @@
         }
 
         .overlay h1 { font-size: 3rem; margin-bottom: 20px; text-shadow: 0 0 20px #ff4757; }
+        #player-status { margin-bottom: 15px; color: #2ecc71; font-weight: bold; }
+        
         .btn {
             padding: 15px 40px; font-size: 1.5rem; background: #2ecc71; color: white;
             border: none; border-radius: 50px; cursor: pointer; transition: 0.2s;
             box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
         }
-        .btn:hover { background: #27ae60; transform: scale(1.05); }
+        .btn:disabled { background: #7f8c8d; cursor: not-allowed; opacity: 0.6; }
         
         #win-screen h1 { text-shadow: 0 0 20px #2ecc71; color: #2ecc71; }
         #lose-screen h1 { text-shadow: 0 0 20px #ff4757; color: #ff4757; }
@@ -58,41 +60,60 @@
 <div id="ui-blue" class="hp-container"><div id="hp-blue" class="hp-bar"></div></div>
 <div id="ui-red" class="hp-container"><div id="hp-red" class="hp-bar"></div></div>
 <div id="mana-box" class="mana-display">MANA: <span id="mana">500</span></div>
-<div id="shop"><div class="card" onclick="spawnUnit(2)"><b>DEPLY</b></div></div>
+<div id="shop"><div class="card" onclick="spawnUnitNet()"><b>DEPLOY</b></div></div>
 
 <div id="game-menu" class="overlay">
     <h1>FANTASY DUEL</h1>
-    <p>Захвати базу красных!</p>
-    <button class="btn" onclick="startGame()">ИГРАТЬ</button>
+    <div id="player-status">Подключение к серверу...</div>
+    <button id="start-btn" class="btn" onclick="startGame()" disabled>ЖДЕМ ИГРОКА 2</button>
 </div>
 
 <div id="win-screen" class="overlay" style="display: none;">
     <h1>ПОБЕДА!</h1>
-    <p>База красных уничтожена.</p>
     <button class="btn" onclick="location.reload()">В МЕНЮ</button>
 </div>
 
 <div id="lose-screen" class="overlay" style="display: none;">
     <h1>ПОРАЖЕНИЕ</h1>
-    <p>Твоя база пала под натиском.</p>
-    <button class="btn" onclick="location.reload()">ПОПРОБОВАТЬ СНОВА</button>
+    <button class="btn" onclick="location.reload()">ЕЩЕ РАЗ</button>
 </div>
 
 <canvas id="game"></canvas>
 
 <script>
+    // Настройка соединения
     const socket = io('https://megame-server.onrender.com');
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
     
-    // Ресурсы
     const mapImg = new Image(); mapImg.src = 'map.jpg'; 
     const bazaImg = new Image(); bazaImg.src = 'baza.jpg'; 
 
     let dpr = window.devicePixelRatio || 1;
     const roadLength = 1200; 
     let cameraY = 0; 
-    let gameState = 'MENU'; // Состояния: MENU, PLAYING, WIN, LOSE
+    let gameState = 'MENU';
+    let mySide = null; // Будет 1 (Красный) или 2 (Синий)
+
+    // Обработка событий от сервера
+    socket.on('playerRole', (role) => {
+        mySide = role;
+        document.getElementById('player-status').innerText = "Ты — Игрок " + role;
+        if(role === 2) {
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('start-btn').innerText = "ИГРАТЬ";
+        } else {
+            document.getElementById('start-btn').innerText = "ЖДЕМ ПРОТИВНИКА...";
+        }
+    });
+
+    socket.on('gameStart', () => {
+        realStart();
+    });
+
+    socket.on('spawnUnit', (data) => {
+        units.push(data);
+    });
 
     function resize() { 
         canvas.width = window.innerWidth * dpr;
@@ -106,45 +127,41 @@
     let units = [];
 
     function startGame() {
+        socket.emit('startGame');
+    }
+
+    function realStart() {
         gameState = 'PLAYING';
-        pBlue = { hp: 100, money: 500 };
-        pRed = { hp: 100, money: 500 };
-        units = [];
-        cameraY = 0;
-        
-        // Показываем интерфейс
         document.getElementById('game-menu').style.display = 'none';
-        document.getElementById('ui-blue').style.display = 'block';
-        document.getElementById('ui-red').style.display = 'block';
-        document.getElementById('mana-box').style.display = 'block';
-        document.getElementById('shop').style.display = 'block';
+        document.querySelectorAll('.hp-container, .mana-display, #shop').forEach(el => el.style.display = 'block');
         updateUI();
     }
 
-    function spawnUnit(side) {
-        if (gameState !== 'PLAYING') return;
-        let player = (side === 2) ? pBlue : pRed;
-        if (player.money >= 50) {
+    function spawnUnitNet() {
+        let player = (mySide === 2) ? pBlue : pRed;
+        if (player.money >= 50 && gameState === 'PLAYING') {
             player.money -= 50;
             let roadWidth = Math.min(window.innerWidth, 800); 
             let startX = (window.innerWidth - roadWidth) / 2;
-            units.push({
+            let unitData = {
                 x: startX + 100 + Math.random() * (roadWidth - 200),
-                y: (side === 1) ? -roadLength + 150 : window.innerHeight - 100,
-                side: side, hp: 100, maxHp: 100, speed: 2.2,
-                color: (side === 1) ? '#ff4757' : '#00d2ff'
-            });
+                y: (mySide === 1) ? -roadLength + 150 : window.innerHeight - 100,
+                side: mySide, hp: 100, maxHp: 100, speed: 2.2,
+                color: (mySide === 1) ? '#ff4757' : '#00d2ff'
+            };
+            socket.emit('spawnUnit', unitData);
             updateUI();
         }
     }
 
     function updateUI() {
-        document.getElementById('mana').innerText = Math.floor(pBlue.money);
+        let currentMoney = (mySide === 2) ? pBlue.money : pRed.money;
+        document.getElementById('mana').innerText = Math.floor(currentMoney);
         document.getElementById('hp-blue').style.width = pBlue.hp + '%';
         document.getElementById('hp-red').style.width = pRed.hp + '%';
     }
 
-    // --- УПРАВЛЕНИЕ ---
+    // Управление камерой
     let isDragging = false, startY = 0;
     const startDrag = (y) => { if(gameState==='PLAYING'){isDragging = true; startY = y - cameraY;} };
     const moveDrag = (y) => {
@@ -152,36 +169,27 @@
         cameraY = y - startY;
         cameraY = Math.max(0, Math.min(cameraY, roadLength));
     };
-    const stopDrag = () => { isDragging = false; };
-
     canvas.addEventListener('mousedown', (e) => startDrag(e.clientY));
     window.addEventListener('mousemove', (e) => moveDrag(e.clientY));
-    window.addEventListener('mouseup', stopDrag);
-    canvas.addEventListener('touchstart', (e) => startDrag(e.touches[0].clientY), { passive: false });
-    window.addEventListener('touchmove', (e) => { moveDrag(e.touches[0].clientY); if (isDragging) e.preventDefault(); }, { passive: false });
-    window.addEventListener('touchend', stopDrag);
+    window.addEventListener('mouseup', () => isDragging = false);
+    canvas.addEventListener('touchstart', (e) => startDrag(e.touches[0].clientY));
+    window.addEventListener('touchmove', (e) => { moveDrag(e.touches[0].clientY); if(isDragging) e.preventDefault(); }, {passive: false});
 
     function drawWorld() {
         ctx.save();
         ctx.translate(0, cameraY);
-        let sw = window.innerWidth, sh = window.innerHeight;
-        let roadWidth = Math.min(sw, 800), roadX = (sw - roadWidth) / 2;
+        let sw = window.innerWidth, roadWidth = Math.min(sw, 800), roadX = (sw - roadWidth) / 2;
 
         ctx.fillStyle = '#1a2b1a';
-        ctx.fillRect(0, -roadLength - sh, sw, roadLength + sh * 2);
+        ctx.fillRect(0, -roadLength - 1000, sw, roadLength + 2000);
 
-        if (mapImg.complete && mapImg.naturalWidth !== 0) {
-            const scale = roadWidth / mapImg.width;
-            const drawHeight = mapImg.height * scale;
-            for (let y = -roadLength; y < sh; y += drawHeight) {
-                ctx.drawImage(mapImg, Math.floor(roadX), Math.floor(y), Math.ceil(roadWidth), Math.ceil(drawHeight) + 1);
+        if (mapImg.complete) {
+            for (let y = -roadLength; y < window.innerHeight; y += 400) {
+                ctx.drawImage(mapImg, roadX, y, roadWidth, 401);
             }
         }
-
-        if (bazaImg.complete && bazaImg.naturalWidth !== 0) {
-            const bScale = roadWidth / bazaImg.width;
-            const bHeight = bazaImg.height * bScale;
-            ctx.drawImage(bazaImg, Math.floor(roadX), Math.floor(-roadLength), Math.ceil(roadWidth), Math.ceil(bHeight));
+        if (bazaImg.complete) {
+            ctx.drawImage(bazaImg, roadX, -roadLength, roadWidth, 200);
         }
 
         units.forEach((u, i) => {
@@ -194,46 +202,36 @@
             });
 
             if (nearest) {
-                let angle = Math.atan2(nearest.y - u.y, nearest.x - u.x);
-                if (minDist > 30) { u.x += Math.cos(angle) * u.speed; u.y += Math.sin(angle) * u.speed; } 
-                else { nearest.hp -= 1; }
+                if (minDist > 30) { 
+                    let angle = Math.atan2(nearest.y - u.y, nearest.x - u.x);
+                    u.x += Math.cos(angle) * u.speed; u.y += Math.sin(angle) * u.speed; 
+                } else { nearest.hp -= 0.5; }
             } else {
                 u.y += (u.side === 1) ? u.speed : -u.speed;
             }
 
             ctx.fillStyle = u.color;
             ctx.beginPath(); ctx.arc(u.x, u.y, 12, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(u.x-10, u.y-25, 20, 3);
-            ctx.fillStyle = '#2ecc71'; ctx.fillRect(u.x-10, u.y-25, 20 * (u.hp/u.maxHp), 3);
+            ctx.fillStyle = '#2ecc71'; ctx.fillRect(u.x-10, u.y-20, 20 * (u.hp/u.maxHp), 3);
 
-            if (u.side === 2 && u.y < -roadLength + 100) { pRed.hp -= 5; units.splice(i, 1); updateUI(); } 
-            else if (u.side === 1 && u.y > sh - 50) { pBlue.hp -= 5; units.splice(i, 1); updateUI(); } 
+            if (u.side === 2 && u.y < -roadLength + 100) { pRed.hp -= 1; units.splice(i, 1); updateUI(); } 
+            else if (u.side === 1 && u.y > window.innerHeight - 50) { pBlue.hp -= 1; units.splice(i, 1); updateUI(); } 
             else if (u.hp <= 0) { units.splice(i, 1); }
         });
         ctx.restore();
     }
 
-    function checkEndGame() {
-        if (pBlue.hp <= 0) {
-            gameState = 'LOSE';
-            document.getElementById('lose-screen').style.display = 'flex';
-        } else if (pRed.hp <= 0) {
-            gameState = 'WIN';
-            document.getElementById('win-screen').style.display = 'flex';
-        }
-    }
-
     function loop() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawWorld();
-        if (gameState === 'PLAYING') checkEndGame();
+        if (gameState === 'PLAYING') {
+            if (pBlue.hp <= 0) { gameState = 'LOSE'; document.getElementById('lose-screen').style.display = 'flex'; }
+            else if (pRed.hp <= 0) { gameState = 'WIN'; document.getElementById('win-screen').style.display = 'flex'; }
+        }
         requestAnimationFrame(loop);
     }
 
-    setInterval(() => { if(gameState === 'PLAYING' && pRed.money >= 50) spawnUnit(1); }, 3000);
-    setInterval(() => { if(gameState === 'PLAYING') { pBlue.money += 20; pRed.money += 20; updateUI(); } }, 1000);
-    
+    setInterval(() => { if(gameState === 'PLAYING') { pBlue.money += 5; pRed.money += 5; updateUI(); } }, 1000);
     loop();
 </script>
 </body>

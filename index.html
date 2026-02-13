@@ -3,51 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fantasy Duel: MultiPlayer PRO</title>
+    <title>Fantasy Duel: Lobby System</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #1a2b1a; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #1a2b1a; font-family: 'Segoe UI', sans-serif; user-select: none; color: white; }
         canvas { display: block; width: 100vw; height: 100vh; image-rendering: -webkit-optimize-contrast; touch-action: none; }
         
-        .hp-container {
-            position: absolute; width: 140px; height: 16px;
-            background: rgba(0,0,0,0.6); border: 2px solid #fff; border-radius: 10px;
-            overflow: hidden; z-index: 10; display: none;
-        }
+        /* Интерфейс игры */
+        .hp-container { position: absolute; width: 140px; height: 16px; background: rgba(0,0,0,0.6); border: 2px solid #fff; border-radius: 10px; overflow: hidden; z-index: 10; display: none; }
         .hp-bar { width: 100%; height: 100%; transition: width 0.3s ease; }
         #ui-blue { top: 20px; left: 20px; } #hp-blue { background: #00d2ff; }
         #ui-red { top: 20px; right: 20px; } #hp-red { background: #ff4757; }
-
-        .mana-display {
-            position: absolute; bottom: 25px; left: 25px;
-            background: rgba(0, 30, 80, 0.85); color: #fff;
-            padding: 12px 20px; border-radius: 30px; font-weight: bold; border: 2px solid #fff; z-index: 10; display: none;
-        }
-
+        .mana-display { position: absolute; bottom: 25px; left: 25px; background: rgba(0, 30, 80, 0.85); padding: 12px 20px; border-radius: 30px; font-weight: bold; border: 2px solid #fff; z-index: 10; display: none; }
         #shop { position: absolute; right: 25px; bottom: 25px; z-index: 11; display: none; }
-        .card { 
-            width: 80px; height: 80px; background: #5d4037; border: 4px solid #fff; border-radius: 50%; 
-            display: flex; align-items: center; justify-content: center; color: #fff; cursor: pointer;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.4);
-        }
-        .card:active { transform: scale(0.9); }
+        .card { width: 80px; height: 80px; background: #5d4037; border: 4px solid #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
-        .overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 1000; color: white; text-align: center;
-        }
-
-        .overlay h1 { font-size: 3rem; margin-bottom: 10px; text-shadow: 0 0 20px #ff4757; }
-        #player-status { margin-bottom: 20px; font-size: 1.2rem; color: #2ecc71; height: 30px; }
-        
-        .btn {
-            padding: 18px 50px; font-size: 1.6rem; background: #2ecc71; color: white;
-            border: none; border-radius: 50px; cursor: pointer; transition: 0.3s;
-            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
-        }
-        .btn:disabled { background: #7f8c8d; cursor: not-allowed; transform: none !important; opacity: 0.5; }
+        /* Система Лобби */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; text-align: center; }
+        .btn { padding: 15px 35px; margin: 10px; font-size: 1.2rem; background: #2ecc71; color: white; border: none; border-radius: 10px; cursor: pointer; width: 250px; }
+        .btn:disabled { background: #555; cursor: not-allowed; }
+        .lobby-box { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; border: 1px solid #444; margin-top: 20px; }
+        .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ff4757; margin-right: 10px; }
+        .online { background: #2ecc71; }
     </style>
 </head>
 <body>
@@ -59,55 +36,68 @@
 
 <div id="game-menu" class="overlay">
     <h1>FANTASY DUEL</h1>
-    <div id="player-status">Поиск сервера...</div>
-    <button id="start-btn" class="btn" onclick="startGame()" disabled>СОЕДИНЕНИЕ...</button>
+    <p id="net-status"><span class="status-dot"></span> Соединение с сервером...</p>
+    
+    <div id="lobby-ui" style="display: none;">
+        <div class="lobby-box">
+            <p id="player-count">Игроков в сети: 0</p>
+            <p id="my-role">Твой статус: Ожидание...</p>
+        </div>
+        <button id="start-btn" class="btn" onclick="requestStart()" disabled>ЖДЕМ ПРОТИВНИКА</button>
+    </div>
 </div>
-
-<div id="win-screen" class="overlay" style="display: none;"><h1>ПОБЕДА!</h1><button class="btn" onclick="location.reload()">В МЕНЮ</button></div>
-<div id="lose-screen" class="overlay" style="display: none;"><h1>ПОРАЖЕНИЕ</h1><button class="btn" onclick="location.reload()">ЕЩЕ РАЗ</button></div>
 
 <canvas id="game"></canvas>
 
 <script>
-    // 1. ПОДКЛЮЧЕНИЕ (С ПРИНУДИТЕЛЬНЫМ WEBSOCKET)
-    const socket = io('https://megame-server.onrender.com', {
-        transports: ['websocket'],
-        reconnectionAttempts: 5
-    });
-
+    const socket = io('https://megame-server.onrender.com', { transports: ['websocket'] });
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
-    const statusEl = document.getElementById('player-status');
-    const startBtn = document.getElementById('start-btn');
 
     let mySide = null;
     let gameState = 'MENU';
     let pBlue = { hp: 100, money: 500 }, pRed = { hp: 100, money: 500 };  
     let units = [];
-    const roadLength = 1200; 
     let cameraY = 0;
+    const roadLength = 1200;
 
     // Ресурсы
     const mapImg = new Image(); mapImg.src = 'map.jpg'; 
-    const bazaImg = new Image(); bazaImg.src = 'baza.jpg'; 
+    const bazaImg = new Image(); bazaImg.src = 'baza.jpg';
 
-    // 2. ЛОГИКА СЕТИ
+    // --- СЕТЕВАЯ ЛОГИКА ---
     socket.on('connect', () => {
-        statusEl.innerText = "Подключено! Ожидание роли...";
+        document.getElementById('net-status').innerHTML = '<span class="status-dot online"></span> Сервер онлайн';
+        document.getElementById('lobby-ui').style.display = 'block';
     });
 
     socket.on('playerRole', (role) => {
         mySide = role;
-        statusEl.innerText = "Ты — Игрок " + role + (role === 1 ? " (Защита Красных)" : " (Защита Синих)");
-        
-        if(role === 2) {
-            startBtn.disabled = false;
-            startBtn.innerText = "НАЧАТЬ БОЙ";
-        } else {
-            startBtn.disabled = true;
-            startBtn.innerText = "ЖДЕМ ИГРОКА 2...";
-        }
+        document.getElementById('my-role').innerText = "Ты: Игрок " + role;
+        updateLobbyButton();
     });
+
+    socket.on('playerCount', (count) => {
+        document.getElementById('player-count').innerText = "Игроков в сети: " + count;
+        updateLobbyButton(count);
+    });
+
+    function updateLobbyButton(count) {
+        const btn = document.getElementById('start-btn');
+        if (mySide === 2) {
+            btn.disabled = false;
+            btn.innerText = "ЗАПУСТИТЬ ИГРУ";
+            btn.style.background = "#2ecc71";
+        } else if (mySide === 1) {
+            btn.disabled = true;
+            btn.innerText = "ЖДЕМ ИГРОКА 2";
+            btn.style.background = "#e67e22";
+        }
+    }
+
+    function requestStart() {
+        socket.emit('startGame');
+    }
 
     socket.on('gameStart', () => {
         gameState = 'PLAYING';
@@ -115,29 +105,16 @@
         document.querySelectorAll('.hp-container, .mana-display, #shop').forEach(el => el.style.display = 'block');
     });
 
-    socket.on('spawnUnit', (data) => {
-        units.push(data);
-    });
+    socket.on('spawnUnit', (data) => { units.push(data); });
 
-    socket.on('disconnect', () => {
-        statusEl.innerText = "Связь потеряна. Переподключение...";
-        startBtn.disabled = true;
-    });
-
-    function startGame() {
-        if (mySide === 2) socket.emit('startGame');
-    }
-
+    // --- ИГРОВАЯ ЛОГИКА ---
     function spawnUnitNet() {
-        let currentMoney = (mySide === 2) ? pBlue.money : pRed.money;
-        if (currentMoney >= 50 && gameState === 'PLAYING') {
+        let money = (mySide === 2) ? pBlue.money : pRed.money;
+        if (money >= 50 && gameState === 'PLAYING') {
             if(mySide === 2) pBlue.money -= 50; else pRed.money -= 50;
-            
-            let roadWidth = Math.min(window.innerWidth, 800); 
-            let startX = (window.innerWidth - roadWidth) / 2;
-            
+            let roadWidth = Math.min(window.innerWidth, 800);
             let unitData = {
-                x: startX + 100 + Math.random() * (roadWidth - 200),
+                x: ((window.innerWidth - roadWidth) / 2) + 100 + Math.random() * (roadWidth - 200),
                 y: (mySide === 1) ? -roadLength + 150 : window.innerHeight - 100,
                 side: mySide, hp: 100, maxHp: 100, speed: 2.2,
                 color: (mySide === 1) ? '#ff4757' : '#00d2ff'
@@ -147,40 +124,18 @@
         }
     }
 
-    // 3. ГРАФИКА И ОБНОВЛЕНИЕ
     function updateUI() {
         document.getElementById('mana').innerText = Math.floor((mySide === 2) ? pBlue.money : pRed.money);
         document.getElementById('hp-blue').style.width = pBlue.hp + '%';
         document.getElementById('hp-red').style.width = pRed.hp + '%';
     }
 
-    function resize() { 
-        canvas.width = window.innerWidth * (window.devicePixelRatio || 1);
-        canvas.height = window.innerHeight * (window.devicePixelRatio || 1);
-        ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    // Управление камерой (drag)
-    let isDragging = false, startY = 0;
-    canvas.addEventListener('touchstart', (e) => { isDragging = true; startY = e.touches[0].clientY - cameraY; });
-    window.addEventListener('touchmove', (e) => { 
-        if(isDragging) {
-            cameraY = e.touches[0].clientY - startY;
-            cameraY = Math.max(0, Math.min(cameraY, roadLength));
-            e.preventDefault();
-        }
-    }, {passive: false});
-    window.addEventListener('touchend', () => isDragging = false);
-
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
         ctx.translate(0, cameraY);
-        
-        let sw = window.innerWidth, roadWidth = Math.min(sw, 800), roadX = (sw - roadWidth) / 2;
-        ctx.fillStyle = '#1a2b1a'; ctx.fillRect(0, -roadLength - 500, sw, roadLength + 1500);
+        let roadWidth = Math.min(window.innerWidth, 800), roadX = (window.innerWidth - roadWidth) / 2;
+        ctx.fillStyle = '#1a2b1a'; ctx.fillRect(0, -roadLength - 500, window.innerWidth, roadLength + 1500);
 
         if (mapImg.complete) {
             for (let y = -roadLength; y < window.innerHeight; y += 400) ctx.drawImage(mapImg, roadX, y, roadWidth, 401);
@@ -188,39 +143,23 @@
         if (bazaImg.complete) ctx.drawImage(bazaImg, roadX, -roadLength, roadWidth, 200);
 
         units.forEach((u, i) => {
-            let nearest = null; let minDist = 150;
-            units.forEach(other => {
-                if (other.side !== u.side) {
-                    let d = Math.hypot(u.x - other.x, u.y - other.y);
-                    if (d < minDist) { minDist = d; nearest = other; }
-                }
-            });
-
-            if (nearest) {
-                if (minDist > 30) { 
-                    let angle = Math.atan2(nearest.y - u.y, nearest.x - u.x);
-                    u.x += Math.cos(angle) * u.speed; u.y += Math.sin(angle) * u.speed; 
-                } else { nearest.hp -= 0.5; }
-            } else {
-                u.y += (u.side === 1) ? u.speed : -u.speed;
-            }
-
+            u.y += (u.side === 1) ? u.speed : -u.speed;
             ctx.fillStyle = u.color; ctx.beginPath(); ctx.arc(u.x, u.y, 12, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#2ecc71'; ctx.fillRect(u.x-10, u.y-20, 20 * (u.hp/u.maxHp), 3);
-
-            if (u.side === 2 && u.y < -roadLength + 100) { pRed.hp -= 2; units.splice(i, 1); updateUI(); } 
-            else if (u.side === 1 && u.y > window.innerHeight - 50) { pBlue.hp -= 2; units.splice(i, 1); updateUI(); } 
-            else if (u.hp <= 0) { units.splice(i, 1); }
+            if (u.side === 2 && u.y < -roadLength + 100) { pRed.hp -= 2; units.splice(i, 1); updateUI(); }
+            else if (u.side === 1 && u.y > window.innerHeight - 50) { pBlue.hp -= 2; units.splice(i, 1); updateUI(); }
         });
-
         ctx.restore();
-        
-        if (gameState === 'PLAYING') {
-            if (pBlue.hp <= 0) { gameState = 'LOSE'; document.getElementById('lose-screen').style.display = 'flex'; }
-            else if (pRed.hp <= 0) { gameState = 'WIN'; document.getElementById('win-screen').style.display = 'flex'; }
-        }
         requestAnimationFrame(draw);
     }
+
+    // Камера
+    let isDragging = false, startY = 0;
+    window.addEventListener('touchstart', (e) => { isDragging = true; startY = e.touches[0].clientY - cameraY; });
+    window.addEventListener('touchmove', (e) => { if(isDragging) { cameraY = e.touches[0].clientY - startY; cameraY = Math.max(0, Math.min(cameraY, roadLength)); e.preventDefault(); } }, {passive: false});
+    window.addEventListener('touchend', () => isDragging = false);
+
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
     setInterval(() => { if(gameState === 'PLAYING') { pBlue.money += 5; pRed.money += 5; updateUI(); } }, 1000);
     draw();

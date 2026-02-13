@@ -1,12 +1,12 @@
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fantasy Duel: MultiPlayer</title>
+    <title>Fantasy Duel: MultiPlayer PRO</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #1a2b1a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #1a2b1a; font-family: 'Segoe UI', sans-serif; user-select: none; }
         canvas { display: block; width: 100vw; height: 100vh; image-rendering: -webkit-optimize-contrast; touch-action: none; }
         
         .hp-container {
@@ -15,10 +15,8 @@
             overflow: hidden; z-index: 10; display: none;
         }
         .hp-bar { width: 100%; height: 100%; transition: width 0.3s ease; }
-        #ui-blue { top: 20px; left: 20px; } 
-        #hp-blue { background: #00d2ff; }
-        #ui-red { top: 20px; right: 20px; } 
-        #hp-red { background: #ff4757; }
+        #ui-blue { top: 20px; left: 20px; } #hp-blue { background: #00d2ff; }
+        #ui-red { top: 20px; right: 20px; } #hp-red { background: #ff4757; }
 
         .mana-display {
             position: absolute; bottom: 25px; left: 25px;
@@ -36,23 +34,20 @@
 
         .overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(5px);
+            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 1000; color: white; text-align: center;
         }
 
-        .overlay h1 { font-size: 3rem; margin-bottom: 20px; text-shadow: 0 0 20px #ff4757; }
-        #player-status { margin-bottom: 15px; color: #2ecc71; font-weight: bold; }
+        .overlay h1 { font-size: 3rem; margin-bottom: 10px; text-shadow: 0 0 20px #ff4757; }
+        #player-status { margin-bottom: 20px; font-size: 1.2rem; color: #2ecc71; height: 30px; }
         
         .btn {
-            padding: 15px 40px; font-size: 1.5rem; background: #2ecc71; color: white;
-            border: none; border-radius: 50px; cursor: pointer; transition: 0.2s;
+            padding: 18px 50px; font-size: 1.6rem; background: #2ecc71; color: white;
+            border: none; border-radius: 50px; cursor: pointer; transition: 0.3s;
             box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
         }
-        .btn:disabled { background: #7f8c8d; cursor: not-allowed; opacity: 0.6; }
-        
-        #win-screen h1 { text-shadow: 0 0 20px #2ecc71; color: #2ecc71; }
-        #lose-screen h1 { text-shadow: 0 0 20px #ff4757; color: #ff4757; }
+        .btn:disabled { background: #7f8c8d; cursor: not-allowed; transform: none !important; opacity: 0.5; }
     </style>
 </head>
 <body>
@@ -64,85 +59,83 @@
 
 <div id="game-menu" class="overlay">
     <h1>FANTASY DUEL</h1>
-    <div id="player-status">Подключение к серверу...</div>
-    <button id="start-btn" class="btn" onclick="startGame()" disabled>ЖДЕМ ИГРОКА 2</button>
+    <div id="player-status">Поиск сервера...</div>
+    <button id="start-btn" class="btn" onclick="startGame()" disabled>СОЕДИНЕНИЕ...</button>
 </div>
 
-<div id="win-screen" class="overlay" style="display: none;">
-    <h1>ПОБЕДА!</h1>
-    <button class="btn" onclick="location.reload()">В МЕНЮ</button>
-</div>
-
-<div id="lose-screen" class="overlay" style="display: none;">
-    <h1>ПОРАЖЕНИЕ</h1>
-    <button class="btn" onclick="location.reload()">ЕЩЕ РАЗ</button>
-</div>
+<div id="win-screen" class="overlay" style="display: none;"><h1>ПОБЕДА!</h1><button class="btn" onclick="location.reload()">В МЕНЮ</button></div>
+<div id="lose-screen" class="overlay" style="display: none;"><h1>ПОРАЖЕНИЕ</h1><button class="btn" onclick="location.reload()">ЕЩЕ РАЗ</button></div>
 
 <canvas id="game"></canvas>
 
 <script>
-    // Настройка соединения
-    const socket = io('https://megame-server.onrender.com');
+    // 1. ПОДКЛЮЧЕНИЕ (С ПРИНУДИТЕЛЬНЫМ WEBSOCKET)
+    const socket = io('https://megame-server.onrender.com', {
+        transports: ['websocket'],
+        reconnectionAttempts: 5
+    });
+
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
-    
+    const statusEl = document.getElementById('player-status');
+    const startBtn = document.getElementById('start-btn');
+
+    let mySide = null;
+    let gameState = 'MENU';
+    let pBlue = { hp: 100, money: 500 }, pRed = { hp: 100, money: 500 };  
+    let units = [];
+    const roadLength = 1200; 
+    let cameraY = 0;
+
+    // Ресурсы
     const mapImg = new Image(); mapImg.src = 'map.jpg'; 
     const bazaImg = new Image(); bazaImg.src = 'baza.jpg'; 
 
-    let dpr = window.devicePixelRatio || 1;
-    const roadLength = 1200; 
-    let cameraY = 0; 
-    let gameState = 'MENU';
-    let mySide = null; // Будет 1 (Красный) или 2 (Синий)
+    // 2. ЛОГИКА СЕТИ
+    socket.on('connect', () => {
+        statusEl.innerText = "Подключено! Ожидание роли...";
+    });
 
-    // Обработка событий от сервера
     socket.on('playerRole', (role) => {
         mySide = role;
-        document.getElementById('player-status').innerText = "Ты — Игрок " + role;
+        statusEl.innerText = "Ты — Игрок " + role + (role === 1 ? " (Защита Красных)" : " (Защита Синих)");
+        
         if(role === 2) {
-            document.getElementById('start-btn').disabled = false;
-            document.getElementById('start-btn').innerText = "ИГРАТЬ";
+            startBtn.disabled = false;
+            startBtn.innerText = "НАЧАТЬ БОЙ";
         } else {
-            document.getElementById('start-btn').innerText = "ЖДЕМ ПРОТИВНИКА...";
+            startBtn.disabled = true;
+            startBtn.innerText = "ЖДЕМ ИГРОКА 2...";
         }
     });
 
     socket.on('gameStart', () => {
-        realStart();
+        gameState = 'PLAYING';
+        document.getElementById('game-menu').style.display = 'none';
+        document.querySelectorAll('.hp-container, .mana-display, #shop').forEach(el => el.style.display = 'block');
     });
 
     socket.on('spawnUnit', (data) => {
         units.push(data);
     });
 
-    function resize() { 
-        canvas.width = window.innerWidth * dpr;
-        canvas.height = window.innerHeight * dpr;
-        ctx.scale(dpr, dpr);
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    let pBlue = { hp: 100, money: 500 }, pRed = { hp: 100, money: 500 };  
-    let units = [];
+    socket.on('disconnect', () => {
+        statusEl.innerText = "Связь потеряна. Переподключение...";
+        startBtn.disabled = true;
+    });
 
     function startGame() {
-        socket.emit('startGame');
-    }
-
-    function realStart() {
-        gameState = 'PLAYING';
-        document.getElementById('game-menu').style.display = 'none';
-        document.querySelectorAll('.hp-container, .mana-display, #shop').forEach(el => el.style.display = 'block');
-        updateUI();
+        if (mySide === 2) socket.emit('startGame');
     }
 
     function spawnUnitNet() {
-        let player = (mySide === 2) ? pBlue : pRed;
-        if (player.money >= 50 && gameState === 'PLAYING') {
-            player.money -= 50;
+        let currentMoney = (mySide === 2) ? pBlue.money : pRed.money;
+        if (currentMoney >= 50 && gameState === 'PLAYING') {
+            if(mySide === 2) pBlue.money -= 50; else pRed.money -= 50;
+            
             let roadWidth = Math.min(window.innerWidth, 800); 
             let startX = (window.innerWidth - roadWidth) / 2;
+            
             let unitData = {
                 x: startX + 100 + Math.random() * (roadWidth - 200),
                 y: (mySide === 1) ? -roadLength + 150 : window.innerHeight - 100,
@@ -154,43 +147,45 @@
         }
     }
 
+    // 3. ГРАФИКА И ОБНОВЛЕНИЕ
     function updateUI() {
-        let currentMoney = (mySide === 2) ? pBlue.money : pRed.money;
-        document.getElementById('mana').innerText = Math.floor(currentMoney);
+        document.getElementById('mana').innerText = Math.floor((mySide === 2) ? pBlue.money : pRed.money);
         document.getElementById('hp-blue').style.width = pBlue.hp + '%';
         document.getElementById('hp-red').style.width = pRed.hp + '%';
     }
 
-    // Управление камерой
-    let isDragging = false, startY = 0;
-    const startDrag = (y) => { if(gameState==='PLAYING'){isDragging = true; startY = y - cameraY;} };
-    const moveDrag = (y) => {
-        if (!isDragging) return;
-        cameraY = y - startY;
-        cameraY = Math.max(0, Math.min(cameraY, roadLength));
-    };
-    canvas.addEventListener('mousedown', (e) => startDrag(e.clientY));
-    window.addEventListener('mousemove', (e) => moveDrag(e.clientY));
-    window.addEventListener('mouseup', () => isDragging = false);
-    canvas.addEventListener('touchstart', (e) => startDrag(e.touches[0].clientY));
-    window.addEventListener('touchmove', (e) => { moveDrag(e.touches[0].clientY); if(isDragging) e.preventDefault(); }, {passive: false});
+    function resize() { 
+        canvas.width = window.innerWidth * (window.devicePixelRatio || 1);
+        canvas.height = window.innerHeight * (window.devicePixelRatio || 1);
+        ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    }
+    window.addEventListener('resize', resize);
+    resize();
 
-    function drawWorld() {
+    // Управление камерой (drag)
+    let isDragging = false, startY = 0;
+    canvas.addEventListener('touchstart', (e) => { isDragging = true; startY = e.touches[0].clientY - cameraY; });
+    window.addEventListener('touchmove', (e) => { 
+        if(isDragging) {
+            cameraY = e.touches[0].clientY - startY;
+            cameraY = Math.max(0, Math.min(cameraY, roadLength));
+            e.preventDefault();
+        }
+    }, {passive: false});
+    window.addEventListener('touchend', () => isDragging = false);
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
         ctx.translate(0, cameraY);
+        
         let sw = window.innerWidth, roadWidth = Math.min(sw, 800), roadX = (sw - roadWidth) / 2;
-
-        ctx.fillStyle = '#1a2b1a';
-        ctx.fillRect(0, -roadLength - 1000, sw, roadLength + 2000);
+        ctx.fillStyle = '#1a2b1a'; ctx.fillRect(0, -roadLength - 500, sw, roadLength + 1500);
 
         if (mapImg.complete) {
-            for (let y = -roadLength; y < window.innerHeight; y += 400) {
-                ctx.drawImage(mapImg, roadX, y, roadWidth, 401);
-            }
+            for (let y = -roadLength; y < window.innerHeight; y += 400) ctx.drawImage(mapImg, roadX, y, roadWidth, 401);
         }
-        if (bazaImg.complete) {
-            ctx.drawImage(bazaImg, roadX, -roadLength, roadWidth, 200);
-        }
+        if (bazaImg.complete) ctx.drawImage(bazaImg, roadX, -roadLength, roadWidth, 200);
 
         units.forEach((u, i) => {
             let nearest = null; let minDist = 150;
@@ -210,29 +205,25 @@
                 u.y += (u.side === 1) ? u.speed : -u.speed;
             }
 
-            ctx.fillStyle = u.color;
-            ctx.beginPath(); ctx.arc(u.x, u.y, 12, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = u.color; ctx.beginPath(); ctx.arc(u.x, u.y, 12, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = '#2ecc71'; ctx.fillRect(u.x-10, u.y-20, 20 * (u.hp/u.maxHp), 3);
 
-            if (u.side === 2 && u.y < -roadLength + 100) { pRed.hp -= 1; units.splice(i, 1); updateUI(); } 
-            else if (u.side === 1 && u.y > window.innerHeight - 50) { pBlue.hp -= 1; units.splice(i, 1); updateUI(); } 
+            if (u.side === 2 && u.y < -roadLength + 100) { pRed.hp -= 2; units.splice(i, 1); updateUI(); } 
+            else if (u.side === 1 && u.y > window.innerHeight - 50) { pBlue.hp -= 2; units.splice(i, 1); updateUI(); } 
             else if (u.hp <= 0) { units.splice(i, 1); }
         });
-        ctx.restore();
-    }
 
-    function loop() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawWorld();
+        ctx.restore();
+        
         if (gameState === 'PLAYING') {
             if (pBlue.hp <= 0) { gameState = 'LOSE'; document.getElementById('lose-screen').style.display = 'flex'; }
             else if (pRed.hp <= 0) { gameState = 'WIN'; document.getElementById('win-screen').style.display = 'flex'; }
         }
-        requestAnimationFrame(loop);
+        requestAnimationFrame(draw);
     }
 
     setInterval(() => { if(gameState === 'PLAYING') { pBlue.money += 5; pRed.money += 5; updateUI(); } }, 1000);
-    loop();
+    draw();
 </script>
 </body>
 </html>

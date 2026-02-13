@@ -3,28 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fantasy Duel: Lobby System</title>
+    <title>Fantasy Duel: High Quality</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #1a2b1a; font-family: 'Segoe UI', sans-serif; user-select: none; color: white; }
-        canvas { display: block; width: 100vw; height: 100vh; image-rendering: -webkit-optimize-contrast; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; touch-action: none; }
         
-        /* Интерфейс игры */
         .hp-container { position: absolute; width: 140px; height: 16px; background: rgba(0,0,0,0.6); border: 2px solid #fff; border-radius: 10px; overflow: hidden; z-index: 10; display: none; }
         .hp-bar { width: 100%; height: 100%; transition: width 0.3s ease; }
         #ui-blue { top: 20px; left: 20px; } #hp-blue { background: #00d2ff; }
         #ui-red { top: 20px; right: 20px; } #hp-red { background: #ff4757; }
         .mana-display { position: absolute; bottom: 25px; left: 25px; background: rgba(0, 30, 80, 0.85); padding: 12px 20px; border-radius: 30px; font-weight: bold; border: 2px solid #fff; z-index: 10; display: none; }
         #shop { position: absolute; right: 25px; bottom: 25px; z-index: 11; display: none; }
-        .card { width: 80px; height: 80px; background: #5d4037; border: 4px solid #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-
-        /* Система Лобби */
+        .card { width: 80px; height: 80px; background: #5d4037; border: 4px solid #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; text-align: center; }
-        .btn { padding: 15px 35px; margin: 10px; font-size: 1.2rem; background: #2ecc71; color: white; border: none; border-radius: 10px; cursor: pointer; width: 250px; }
-        .btn:disabled { background: #555; cursor: not-allowed; }
-        .lobby-box { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; border: 1px solid #444; margin-top: 20px; }
-        .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ff4757; margin-right: 10px; }
-        .online { background: #2ecc71; }
+        .btn { padding: 15px 35px; margin: 10px; font-size: 1.2rem; background: #2ecc71; color: white; border: none; border-radius: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -36,15 +29,9 @@
 
 <div id="game-menu" class="overlay">
     <h1>FANTASY DUEL</h1>
-    <p id="net-status"><span class="status-dot"></span> Соединение с сервером...</p>
-    
-    <div id="lobby-ui" style="display: none;">
-        <div class="lobby-box">
-            <p id="player-count">Игроков в сети: 0</p>
-            <p id="my-role">Твой статус: Ожидание...</p>
-        </div>
-        <button id="start-btn" class="btn" onclick="requestStart()" disabled>ЖДЕМ ПРОТИВНИКА</button>
-    </div>
+    <p id="player-count">Подключение...</p>
+    <p id="my-role"></p>
+    <button id="start-btn" class="btn" onclick="requestStart()" disabled>ОЖИДАНИЕ</button>
 </div>
 
 <canvas id="game"></canvas>
@@ -59,45 +46,24 @@
     let pBlue = { hp: 100, money: 500 }, pRed = { hp: 100, money: 500 };  
     let units = [];
     let cameraY = 0;
-    const roadLength = 1200;
+    const roadLength = 3000; 
 
-    // Ресурсы
     const mapImg = new Image(); mapImg.src = 'map.jpg'; 
     const bazaImg = new Image(); bazaImg.src = 'baza.jpg';
 
-    // --- СЕТЕВАЯ ЛОГИКА ---
-    socket.on('connect', () => {
-        document.getElementById('net-status').innerHTML = '<span class="status-dot online"></span> Сервер онлайн';
-        document.getElementById('lobby-ui').style.display = 'block';
-    });
-
     socket.on('playerRole', (role) => {
         mySide = role;
-        document.getElementById('my-role').innerText = "Ты: Игрок " + role;
-        updateLobbyButton();
+        document.getElementById('my-role').innerText = "Ты: " + (role === 1 ? "КРАСНЫЙ" : "СИНИЙ");
     });
 
     socket.on('playerCount', (count) => {
-        document.getElementById('player-count').innerText = "Игроков в сети: " + count;
-        updateLobbyButton(count);
-    });
-
-    function updateLobbyButton(count) {
+        document.getElementById('player-count').innerText = "Игроков: " + count + "/2";
         const btn = document.getElementById('start-btn');
-        if (mySide === 2) {
+        if (count >= 2 && mySide === 2) {
             btn.disabled = false;
-            btn.innerText = "ЗАПУСТИТЬ ИГРУ";
-            btn.style.background = "#2ecc71";
-        } else if (mySide === 1) {
-            btn.disabled = true;
-            btn.innerText = "ЖДЕМ ИГРОКА 2";
-            btn.style.background = "#e67e22";
+            btn.innerText = "НАЧАТЬ ИГРУ";
         }
-    }
-
-    function requestStart() {
-        socket.emit('startGame');
-    }
+    });
 
     socket.on('gameStart', () => {
         gameState = 'PLAYING';
@@ -105,21 +71,30 @@
         document.querySelectorAll('.hp-container, .mana-display, #shop').forEach(el => el.style.display = 'block');
     });
 
-    socket.on('spawnUnit', (data) => { units.push(data); });
+    socket.on('spawnUnit', (data) => {
+        units.push({ ...data, id: Math.random(), currentHp: 100 });
+    });
 
-    // --- ИГРОВАЯ ЛОГИКА ---
+    function requestStart() { socket.emit('startGame'); }
+
     function spawnUnitNet() {
         let money = (mySide === 2) ? pBlue.money : pRed.money;
         if (money >= 50 && gameState === 'PLAYING') {
             if(mySide === 2) pBlue.money -= 50; else pRed.money -= 50;
-            let roadWidth = Math.min(window.innerWidth, 800);
+            
+            // Центрируем дорогу
+            let roadWidth = 800; 
+            let roadX = (window.innerWidth / 2) - (roadWidth / 2);
+            let spawnX = roadX + 100 + Math.random() * (roadWidth - 200);
+            
             let unitData = {
-                x: ((window.innerWidth - roadWidth) / 2) + 100 + Math.random() * (roadWidth - 200),
-                y: (mySide === 1) ? -roadLength + 150 : window.innerHeight - 100,
-                side: mySide, hp: 100, maxHp: 100, speed: 2.2,
+                x: spawnX,
+                y: (mySide === 1) ? -roadLength + 250 : roadLength - 250,
+                side: mySide,
                 color: (mySide === 1) ? '#ff4757' : '#00d2ff'
             };
             socket.emit('spawnUnit', unitData);
+            units.push({...unitData, id: Math.random(), currentHp: 100});
             updateUI();
         }
     }
@@ -133,35 +108,87 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
-        ctx.translate(0, cameraY);
-        let roadWidth = Math.min(window.innerWidth, 800), roadX = (window.innerWidth - roadWidth) / 2;
-        ctx.fillStyle = '#1a2b1a'; ctx.fillRect(0, -roadLength - 500, window.innerWidth, roadLength + 1500);
+        ctx.translate(0, cameraY + (window.innerHeight/2)); // Камера центрируется
 
+        let sw = window.innerWidth;
+        let roadWidth = 800; 
+        let roadX = (sw / 2) - (roadWidth / 2);
+
+        // ТРАВА
+        ctx.fillStyle = '#1a2b1a';
+        ctx.fillRect(-2000, -roadLength - 1000, 4000, roadLength * 3);
+
+        // ДОРОГА (Рисуем КРАСИВО и ЧЕТКО)
         if (mapImg.complete) {
-            for (let y = -roadLength; y < window.innerHeight; y += 400) ctx.drawImage(mapImg, roadX, y, roadWidth, 401);
+            // Рисуем дорогу от начала до конца без искажений
+            for (let y = -roadLength; y < roadLength; y += mapImg.height) {
+                ctx.drawImage(mapImg, roadX, y, roadWidth, mapImg.height);
+            }
         }
-        if (bazaImg.complete) ctx.drawImage(bazaImg, roadX, -roadLength, roadWidth, 200);
 
+        // БАЗЫ
+        if (bazaImg.complete) {
+            ctx.drawImage(bazaImg, roadX, -roadLength - 150, roadWidth, 300); // Верхняя
+            ctx.drawImage(bazaImg, roadX, roadLength - 150, roadWidth, 300); // Нижняя
+        }
+
+        // БОЙ И ДВИЖЕНИЕ
         units.forEach((u, i) => {
-            u.y += (u.side === 1) ? u.speed : -u.speed;
-            ctx.fillStyle = u.color; ctx.beginPath(); ctx.arc(u.x, u.y, 12, 0, Math.PI*2); ctx.fill();
-            if (u.side === 2 && u.y < -roadLength + 100) { pRed.hp -= 2; units.splice(i, 1); updateUI(); }
-            else if (u.side === 1 && u.y > window.innerHeight - 50) { pBlue.hp -= 2; units.splice(i, 1); updateUI(); }
+            let collision = false;
+            units.forEach(other => {
+                if (other.side !== u.side) {
+                    let d = Math.hypot(u.x - other.x, u.y - other.y);
+                    if (d < 40) { 
+                        collision = true;
+                        other.currentHp -= 0.4; // Взаимный урон
+                    }
+                }
+            });
+
+            if (!collision) {
+                u.y += (u.side === 1) ? 2.5 : -2.5;
+            }
+
+            // Рисование юнита
+            ctx.fillStyle = u.color;
+            ctx.beginPath(); ctx.arc(u.x, u.y, 18, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.stroke();
+            
+            // Полоска жизни над юнитом
+            ctx.fillStyle = "black"; ctx.fillRect(u.x - 20, u.y - 35, 40, 6);
+            ctx.fillStyle = "#00ff00"; ctx.fillRect(u.x - 20, u.y - 35, 40 * (u.currentHp/100), 6);
+
+            // Урон базе
+            if (u.side === 2 && u.y < -roadLength + 100) { pRed.hp -= 5; units.splice(i, 1); }
+            if (u.side === 1 && u.y > roadLength - 100) { pBlue.hp -= 5; units.splice(i, 1); }
+            
+            if (u.currentHp <= 0) units.splice(i, 1);
         });
+
         ctx.restore();
+        
+        // Конец игры
+        if (pBlue.hp <= 0) { alert("ПОРАЖЕНИЕ!"); location.reload(); }
+        if (pRed.hp <= 0) { alert("ПОБЕДА!"); location.reload(); }
+
         requestAnimationFrame(draw);
     }
 
-    // Камера
+    // Управление камерой (плавное)
     let isDragging = false, startY = 0;
-    window.addEventListener('touchstart', (e) => { isDragging = true; startY = e.touches[0].clientY - cameraY; });
-    window.addEventListener('touchmove', (e) => { if(isDragging) { cameraY = e.touches[0].clientY - startY; cameraY = Math.max(0, Math.min(cameraY, roadLength)); e.preventDefault(); } }, {passive: false});
+    canvas.addEventListener('touchstart', e => { isDragging = true; startY = e.touches[0].clientY - cameraY; });
+    window.addEventListener('touchmove', e => {
+        if(isDragging) {
+            cameraY = e.touches[0].clientY - startY;
+            e.preventDefault();
+        }
+    }, {passive: false});
     window.addEventListener('touchend', () => isDragging = false);
 
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
-    setInterval(() => { if(gameState === 'PLAYING') { pBlue.money += 5; pRed.money += 5; updateUI(); } }, 1000);
+    setInterval(() => { if(gameState === 'PLAYING') { pBlue.money += 10; pRed.money += 10; updateUI(); }}, 1000);
     draw();
 </script>
 </body>

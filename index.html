@@ -2,192 +2,73 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>War Castle | Multiplayer</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>War Castle 2.0</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-
     <style>
         :root {
-            --accent: #5bc0be;
-            --bg-card: #1c2529;
-            --bg-input: #0b1316;
-            --text-main: #ffffff;
-            --radius: 16px;
-            --danger: #ff4757;
+            --accent: #00d2ff;
+            --bg: #0f171a;
+            --card: #1c2529;
+            --text: #ffffff;
         }
-
-        * { -webkit-tap-highlight-color: transparent; outline: none; }
-
         body { 
-            margin: 0; 
-            background: #0f171a; 
-            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; 
-            color: white; 
-            overflow: hidden; 
-            height: 100vh;
-            width: 100vw;
+            margin: 0; background: var(--bg); color: var(--text); 
+            font-family: 'Segoe UI', sans-serif; display: flex; 
+            align-items: center; justify-content: center; height: 100vh;
         }
-
-        canvas { display: block; touch-action: none; }
-
-        /* ЛОББИ */
-        #lobby {
-            position: fixed; inset: 0; 
-            background: radial-gradient(circle at center, #1b272c 0%, #0f171a 100%);
-            display: flex; align-items: center; justify-content: center; 
-            z-index: 100;
+        .container {
+            background: var(--card); padding: 30px; border-radius: 20px;
+            width: 90%; max-width: 360px; text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-
-        .card {
-            background: var(--bg-card); 
-            padding: 30px; 
-            border-radius: var(--radius);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.6); 
-            width: 90%;
-            max-width: 340px; 
-            text-align: center;
-            border: 1px solid rgba(255,255,255,0.05);
+        h1 { font-style: italic; letter-spacing: 2px; color: var(--accent); }
+        input {
+            width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px;
+            border: 1px solid #333; background: #0b1316; color: white; box-sizing: border-box;
         }
-
-        h1 { 
-            letter-spacing: 5px; 
-            font-style: italic; 
-            margin-bottom: 30px; 
-            font-size: 28px;
-            background: linear-gradient(to right, #fff, var(--accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        button {
+            width: 100%; padding: 14px; margin-top: 10px; border: none;
+            border-radius: 10px; background: var(--accent); color: #0b1316;
+            font-weight: bold; cursor: pointer; transition: 0.2s;
         }
-
-        input { 
-            width: 100%; 
-            padding: 15px; 
-            margin-bottom: 20px; 
-            border-radius: 10px; 
-            border: 1px solid rgba(91, 192, 190, 0.3); 
-            background: var(--bg-input); 
-            color: white; 
-            box-sizing: border-box;
-            font-size: 16px;
-            text-align: center;
+        button:disabled { background: #444; color: #888; }
+        .player-slot {
+            background: rgba(255,255,255,0.05); padding: 10px;
+            margin: 5px 0; border-radius: 8px; display: flex; justify-content: space-between;
         }
-
-        button { 
-            width: 100%; 
-            padding: 16px; 
-            border: none; 
-            border-radius: 10px; 
-            background: var(--accent); 
-            color: #0b1316; 
-            font-weight: 800; 
-            cursor: pointer; 
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            transition: transform 0.1s, opacity 0.2s;
-        }
-
-        button:active { transform: scale(0.96); opacity: 0.9; }
-
-        .btn-sec { 
-            background: rgba(255,255,255,0.05); 
-            color: white; 
-            border: 1px solid rgba(255,255,255,0.1); 
-        }
-
-        /* ИГРОВОЙ ИНТЕРФЕЙС */
-        #game-ui { display: none; pointer-events: none; }
-        #game-ui * { pointer-events: auto; }
-
-        #gold-panel {
-            position: fixed; top: 40px; left: 20px; 
-            background: rgba(28, 37, 41, 0.9);
-            padding: 10px 20px; border-radius: 30px; 
-            border: 1px solid rgba(255,215,0,0.3);
-            backdrop-filter: blur(5px);
-        }
-
-        #hp-bars {
-            position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
-            width: 180px; display: flex; flex-direction: column; gap: 6px;
-        }
-
-        .hp-cont { 
-            width: 100%; height: 6px; 
-            background: rgba(0,0,0,0.3); 
-            border-radius: 3px; overflow: hidden; 
-        }
-        .hp-fill { height: 100%; transition: width 0.4s ease-out; }
-
-        #controls {
-            position: fixed; bottom: 40px; left: 50%; 
-            transform: translateX(-50%);
-            display: flex; gap: 15px;
-        }
-
-        .unit-btn {
-            width: 80px; height: 90px; 
-            background: var(--bg-card); 
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 20px; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            font-size: 10px; cursor: pointer;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-
-        .unit-btn span:first-child { font-size: 26px; margin-bottom: 4px; }
+        .badge { background: var(--accent); color: #0b1316; padding: 2px 8px; border-radius: 4px; font-size: 10px; }
     </style>
 </head>
 <body>
 
-<div id="lobby">
-    <div class="card" id="lobby-init">
+<div class="container">
+    <div id="screen-nick">
         <h1>WAR CASTLE</h1>
-        <button onclick="createHostRoom()">СОЗДАТЬ СЕРВЕР</button>
-        <input type="text" id="room-input" placeholder="Код комнаты..." inputmode="numeric">
-        <button class="btn-sec" onclick="joinLobby()">ПРИСОЕДИНИТЬСЯ</button>
-        <p style="font-size: 13px; color: var(--accent); margin-top: 15px;">
-            Онлайн: <span id="online-count">0</span>
-        </p>
+        <p>Введите ваш никнейм:</p>
+        <input type="text" id="nickname-input" placeholder="Игрок 1" maxlength="12">
+        <button onclick="saveNickname()">ПРОДОЛЖИТЬ</button>
     </div>
 
-    <div class="card" id="lobby-waiting" style="display:none;">
-        <p style="color: rgba(255,255,255,0.5); font-size: 12px; margin-bottom: 5px;">КОД ВАШЕЙ КОМНАТЫ:</p>
-        <div id="display-room-id" style="font-size: 42px; font-weight: 900; color: var(--accent); margin-bottom: 20px; letter-spacing: 2px;">0000</div>
-        <p id="waiting-status" style="margin-bottom: 25px;">Ожидание игрока...</p>
-        <button id="start-btn" style="display:none;" onclick="startGameNetwork()">НАЧАТЬ БИТВУ</button>
-        <button class="btn-sec" onclick="location.reload()">ВЫЙТИ</button>
-    </div>
-</div>
-
-<div id="game-ui">
-    <div id="gold-panel">
-        <span style="color: gold; font-weight: bold; font-size: 18px;">💰 <span id="gold-val">100</span></span>
-        <span id="gold-income" style="font-size: 11px; color: #4caf50; display: block;">+2/сек</span>
+    <div id="screen-menu" style="display:none;">
+        <h2 id="welcome-text">Привет!</h2>
+        <button onclick="createRoom()">СОЗДАТЬ ЛОББИ</button>
+        <div style="margin: 20px 0; color: #555;">ИЛИ</div>
+        <input type="text" id="join-input" placeholder="Код комнаты..." inputmode="numeric">
+        <button class="secondary" onclick="joinRoom()" style="background: #333; color: white;">ВОЙТИ</button>
     </div>
 
-    <div id="hp-bars">
-        <div class="hp-cont"><div id="hp-red" class="hp-fill" style="background: #ff4757; width: 100%;"></div></div>
-        <div class="hp-cont"><div id="hp-blue" class="hp-fill" style="background: #00d2ff; width: 100%;"></div></div>
-    </div>
-
-    <div id="controls">
-        <div class="unit-btn" onclick="spawnUnit()">
-            <span>⚔️</span>
-            <b>ВОИН</b>
-            <span style="color: gold;">50g</span>
-        </div>
-        <div class="unit-btn" onclick="buildMine()">
-            <span>💎</span>
-            <b>ШАХТА</b>
-            <span style="color: gold;">100g</span>
-        </div>
+    <div id="screen-lobby" style="display:none;">
+        <p>КОД КОМНАТЫ:</p>
+        <h2 id="room-code-display" style="color: var(--accent); font-size: 32px;">----</h2>
+        <div id="player-list">
+            </div>
+        <p id="lobby-status">Ожидание игроков...</p>
+        <button id="start-btn" style="display:none;" onclick="requestStart()">НАЧАТЬ ИГРУ</button>
+        <button onclick="location.reload()" style="background: none; color: #ff4757; font-size: 12px;">ВЫЙТИ</button>
     </div>
 </div>
-
-<canvas id="game"></canvas>
 
 <script src="logic.js"></script>
-
 </body>
 </html>

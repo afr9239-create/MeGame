@@ -1,20 +1,128 @@
-body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial', sans-serif; color: white; touch-action: none; }
-canvas { display: block; width: 100vw; height: 100vh; z-index: 1; }
+/* Основные цвета проекта */
+:root {
+    --bg-color: #0b0c10;
+    --secondary-bg: #1f2833;
+    --accent-color: #66fcf1;
+    --text-color: #c5c6c7;
+    --danger: #ff4757;
+    --success: #2ecc71;
+}
 
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; text-align: center; padding: 20px; pointer-events: auto; }
-.status-text { font-size: 18px; color: #aaa; margin: 10px; }
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: 'Orbitron', 'Segoe UI', sans-serif; /* Футуристичный шрифт */
+}
 
-.gui { position: absolute; inset: 0; z-index: 100; pointer-events: none; }
-.base-hp { position: absolute; width: 120px; height: 14px; background: #333; border: 2px solid #fff; border-radius: 7px; overflow: hidden; }
-.hp-fill { height: 100%; width: 100%; transition: width 0.3s; }
+/* Фон лобби с эффектом градиента */
+#lobby {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at center, #1f2833 0%, #0b0c10 100%);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
-#hp-blue-cont { top: 20px; left: 20px; } 
-#hp-blue { background: #00d2ff; }
-#hp-red-cont { top: 20px; right: 20px; } 
-#hp-red { background: #ff4757; }
+/* Карточка меню */
+.menu-card {
+    background: rgba(11, 12, 16, 0.85);
+    padding: 50px;
+    border-radius: 15px;
+    border: 1px solid var(--accent-color);
+    box-shadow: 0 0 25px rgba(102, 252, 241, 0.2), inset 0 0 15px rgba(102, 252, 241, 0.1);
+    backdrop-filter: blur(10px); /* Эффект матового стекла */
+    width: 320px;
+    text-align: center;
+}
 
-.mana-box { position: absolute; bottom: 30px; left: 20px; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 20px; border: 2px solid #00d2ff; font-weight: bold; font-size: 18px; pointer-events: auto; }
-.btn-deploy { position: absolute; bottom: 30px; right: 20px; width: 80px; height: 80px; background: #5d4037; border: 4px solid #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; pointer-events: auto; cursor: pointer; }
+/* Заголовок игры */
+h1 {
+    color: var(--accent-color);
+    text-transform: uppercase;
+    letter-spacing: 8px;
+    margin-bottom: 30px;
+    text-shadow: 0 0 10px var(--accent-color);
+}
 
-.btn-start { padding: 15px 40px; background: #2ecc71; color: white; border: none; border-radius: 10px; font-size: 20px; margin: 10px; cursor: pointer; width: 280px; pointer-events: auto; }
-.btn-solo { background: #3498db; }
+/* Поле ввода кода */
+input {
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    background: #000;
+    border: 1px solid var(--secondary-bg);
+    border-radius: 5px;
+    color: var(--accent-color);
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 20px;
+    outline: none;
+    transition: 0.3s;
+}
+
+input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+}
+
+/* Стилизация кнопок */
+button {
+    width: 100%;
+    padding: 14px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    border: none;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-join {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
+
+.btn-host {
+    background: transparent;
+    color: var(--accent-color);
+    border: 1px solid var(--accent-color);
+}
+
+.btn-solo {
+    background: #444;
+    color: #fff;
+    font-size: 12px;
+}
+
+button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(102, 252, 241, 0.4);
+    filter: brightness(1.2);
+}
+
+/* Код комнаты в лобби ожидания */
+#display-room-id {
+    display: block;
+    font-size: 42px;
+    color: var(--accent-color);
+    margin: 20px 0;
+    font-weight: bold;
+    text-shadow: 0 0 20px var(--accent-color);
+}
+
+/* Анимация пульсации для онлайна */
+#online-count {
+    color: var(--success);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}

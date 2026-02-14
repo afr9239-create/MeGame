@@ -1,52 +1,63 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MeGame Multiplayer</title>
-    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { margin:0; overflow:hidden; background:#0b0c10; font-family: 'Segoe UI', sans-serif; }
+        #lobby { position: fixed; inset: 0; background: radial-gradient(circle, #1f2833 0%, #0b0c10 100%); z-index: 1000; display: flex; justify-content: center; align-items: center; color: #66fcf1; text-align: center; }
+        .menu-card { background: rgba(31, 40, 51, 0.8); padding: 40px; border-radius: 20px; border: 2px solid #66fcf1; box-shadow: 0 0 30px rgba(102, 252, 241, 0.3); width: 300px; }
+        input { padding: 12px; width: 80%; border-radius: 8px; border: 1px solid #45a29e; background: #0b0c10; color: #66fcf1; margin-bottom: 15px; font-size: 16px; outline: none; }
+        button { padding: 14px; width: 100%; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; margin-bottom: 10px; transition: 0.3s; }
+        .btn-join { background: #66fcf1; color: #0b0c10; }
+        .btn-host { background: #45a29e; color: white; }
+        .btn-solo { background: #1f2833; color: #c5c6c7; border: 1px solid #45a29e; }
+        button:hover { filter: brightness(1.2); transform: scale(1.02); }
+        #online-count { font-weight: bold; color: #45a29e; }
+    </style>
 </head>
-<body style="margin:0; overflow:hidden; background:#000;">
+<body>
 
-    <div id="lobby" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #121212; z-index: 1000; display: flex; justify-content: center; align-items: center; color: white; font-family: sans-serif; text-align: center;">
-        <div id="lobby-init">
-            <h1 style="color: #66fcf1;">MeGame</h1>
-            <div style="margin-bottom: 20px;">Онлайн: <span id="online-count">0</span></div>
+    <div id="lobby">
+        <div id="lobby-init" class="menu-card">
+            <h1 style="margin-top:0; letter-spacing: 5px;">MEGAME</h1>
+            <p>В сети: <span id="online-count">0</span> игроков</p>
             
-            <input type="text" id="room-input" placeholder="Код комнаты" style="padding: 12px; width: 200px; border-radius: 5px; border:none; margin-bottom: 10px;"><br>
-            <button onclick="joinLobby()" style="padding: 12px 24px; background: #66fcf1; border:none; border-radius: 5px; cursor:pointer; font-weight:bold; width: 224px;">Войти в комнату</button>
+            <input type="text" id="room-input" placeholder="Код комнаты...">
             
-            <p style="color: #555;">——— ИЛИ ———</p>
-            
-            <button onclick="startSoloGame()" style="padding: 10px; background: #444; color: white; border:none; border-radius: 5px; width: 224px; cursor:pointer; margin-bottom: 10px;">Одиночная игра</button><br>
-            <button onclick="createHostRoom()" style="padding: 12px; background: #e67e22; color: white; border:none; border-radius: 5px; width: 224px; cursor:pointer; font-weight:bold;">ХОСТ ЛОББИ</button>
+            <button class="btn-join" onclick="joinLobby()">ВОЙТИ В ЛОББИ</button>
+            <button class="btn-host" onclick="createHostRoom()">СОЗДАТЬ ХОСТ</button>
+            <button class="btn-solo" onclick="startSoloGame()">ОДИНОЧНЫЙ ТЕСТ</button>
         </div>
 
-        <div id="lobby-waiting" style="display: none;">
+        <div id="lobby-waiting" class="menu-card" style="display: none;">
             <h2 id="net-info">Подключение...</h2>
-            <p>Код комнаты: <span id="display-room-id" style="color:#66fcf1; font-weight:bold; font-size: 24px;"></span></p>
-            <p>Передай этот код другу!</p>
-            <button id="start-btn" onclick="startGameNetwork()" style="display: none; padding: 20px 40px; background: #2ecc71; color: white; border:none; border-radius: 10px; font-size: 20px; cursor:pointer;">НАЧАТЬ БИТВУ</button>
+            <div style="background: #0b0c10; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <span style="font-size: 14px; color: #45a29e;">КОД КОМНАТЫ</span><br>
+                <span id="display-room-id" style="font-size: 32px; font-weight: bold; letter-spacing: 3px;">----</span>
+            </div>
+            <p id="waiting-status" style="color: #c5c6c7;">Ожидаем второго игрока...</p>
+            <button id="start-btn" onclick="startGameNetwork()" style="display: none; background: #2ecc71; color: white;">ЗАПУСТИТЬ БИТВУ</button>
+            <button onclick="location.reload()" style="background:transparent; color:#ff4757; font-size:12px; border:none;">ОТМЕНА</button>
         </div>
     </div>
 
-    <div id="game-ui" style="display:none; position:fixed; top:0; width:100%; height:100%; pointer-events:none; font-family: sans-serif;">
-        <div style="position:absolute; top:20px; left:50%; transform:translateX(-50%); width:80%; height:20px; background:rgba(255,255,255,0.2); border-radius:10px; overflow:hidden; pointer-events:auto;">
-            <div id="hp-red" style="width:100%; height:50%; background:#ff4757; transition:0.3s;"></div>
-            <div id="hp-blue" style="width:100%; height:50%; background:#00d2ff; transition:0.3s;"></div>
+    <div id="game-ui" style="display:none; position:fixed; inset:0; pointer-events:none;">
+        <div style="position:absolute; top:20px; left:50%; transform:translateX(-50%); width:80%; height:12px; background:rgba(255,255,255,0.1); border-radius:10px; overflow:hidden; pointer-events:auto; border: 1px solid #45a29e;">
+            <div id="hp-red" style="width:100%; height:50%; background:#ff4757;"></div>
+            <div id="hp-blue" style="width:100%; height:50%; background:#00d2ff;"></div>
         </div>
-
-        <button onclick="spawnUnit()" style="position:absolute; bottom:30px; right:30px; width:80px; height:80px; border-radius:50%; background:#66fcf1; border:4px solid #fff; font-weight:bold; pointer-events:auto; box-shadow: 0 0 15px #66fcf1;">WAR</button>
-        
-        <div style="position:absolute; bottom:35px; left:30px; color:white; font-size:24px; text-shadow: 2px 2px #000;">MANA: <span id="mana-val">0</span></div>
+        <div style="position:absolute; bottom:30px; left:30px; color:#66fcf1; font-size:24px; font-weight:bold; text-shadow: 2px 2px #000;">MANA: <span id="mana-val">0</span></div>
+        <button onclick="spawnUnit()" style="position:absolute; bottom:30px; right:30px; width:90px; height:90px; border-radius:50%; background:#66fcf1; border:5px solid #1f2833; font-weight:bold; pointer-events:auto; box-shadow: 0 0 20px #66fcf1;">WAR</button>
     </div>
 
     <canvas id="game"></canvas>
 
-    <div id="result-screen" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); color:white; flex-direction:column; justify-content:center; align-items:center; z-index:2000;">
-        <h1 id="result-title" style="font-size: 48px;"></h1>
-        <button onclick="location.reload()" style="padding:15px 30px; font-size:20px; cursor:pointer;">В МЕНЮ</button>
+    <div id="result-screen" style="display:none; position:fixed; inset:0; background:rgba(11,12,16,0.9); color:white; flex-direction:column; justify-content:center; align-items:center; z-index:2000;">
+        <h1 id="result-title" style="font-size: 48px; color: #66fcf1;"></h1>
+        <button onclick="location.reload()" style="width:200px; background:#45a29e;">В МЕНЮ</button>
     </div>
 
     <script src="logic.js"></script>

@@ -4,7 +4,7 @@ const ctx = canvas.getContext('2d');
 
 // ПАРАМЕТРЫ МИРА
 const WORLD = { width: 700, height: 2500 }; 
-const ZOOM = 0.55; // Оптимальное отдаление
+const ZOOM = 0.55; 
 
 let mySide = null; 
 let gameActive = false;
@@ -17,6 +17,7 @@ let cameraY = 0;
 const mapImg = new Image(); mapImg.src = 'map.jpg';
 const bazaImg = new Image(); bazaImg.src = 'baza.jpg';
 
+// КЛАСС ВОИНА
 class Warrior {
     constructor(id, side, type, x, y) {
         this.id = id;
@@ -63,11 +64,27 @@ class Warrior {
     }
 }
 
-// УПРАВЛЕНИЕ
+// ЛОББИ И ОНЛАЙН
+function createHostRoom() {
+    const randomRoom = Math.floor(1000 + Math.random() * 9000).toString();
+    document.getElementById('room-input').value = randomRoom;
+    joinLobby();
+}
+
+function joinLobby() {
+    const roomName = document.getElementById('room-input').value;
+    if (!roomName) return alert("Введите код комнаты!");
+    socket.emit('joinRoom', roomName);
+    document.getElementById('lobby-init').style.display = 'none';
+    document.getElementById('lobby-waiting').style.display = 'block';
+    document.getElementById('display-room-id').innerText = roomName;
+}
+
 function startSoloGame() { isSolo = true; mySide = 2; launchGame(); }
 function startGameNetwork() { socket.emit('startGame'); }
 
-socket.on('playerRole', role => { mySide = role; document.getElementById('net-info').innerText = "Игрок " + role; });
+socket.on('totalOnline', count => { document.getElementById('online-count').innerText = count; });
+socket.on('playerRole', role => { mySide = role; document.getElementById('net-info').innerText = "Твоя сторона: " + (role === 1 ? "Красные" : "Синие"); });
 socket.on('playerCount', count => { if (count >= 2 && mySide === 2) document.getElementById('start-btn').style.display = 'block'; });
 socket.on('gameStart', () => { launchGame(); });
 socket.on('spawnUnit', d => { units.push(new Warrior(d.id, d.side, d.type, d.x, d.y)); });
@@ -119,11 +136,9 @@ function draw() {
     ctx.scale(ZOOM, ZOOM);
     ctx.translate(0, -cameraY);
 
-    // Трава
     ctx.fillStyle = '#1a2b1a';
     ctx.fillRect(-WORLD.width*2, -WORLD.height - 1000, WORLD.width * 4, WORLD.height * 2 + 2000);
 
-    // Дорога
     if (mapImg.complete) {
         const roadH = mapImg.height * (WORLD.width / mapImg.width);
         for (let y = -WORLD.height; y < WORLD.height; y += roadH) {
@@ -131,7 +146,6 @@ function draw() {
         }
     }
 
-    // Базы (С ОТСТУПОМ)
     if (bazaImg.complete) {
         const bW = 550, bH = 300, offset = 180;
         ctx.drawImage(bazaImg, -bW/2, -WORLD.height + offset, bW, bH);
@@ -147,7 +161,6 @@ function draw() {
     requestAnimationFrame(draw);
 }
 
-// КАМЕРА С ОГРАНИЧЕНИЕМ
 let isDrag = false, startY = 0;
 canvas.ontouchstart = e => { isDrag = true; startY = e.touches[0].clientY / ZOOM + cameraY; };
 canvas.ontouchmove = e => { 

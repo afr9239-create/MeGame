@@ -1,121 +1,165 @@
-/* Основные переменные для легкой настройки */
 :root {
-    --accent: #48b1ad; /* Тот самый бирюзовый из референса */
-    --bg-main: #1a2226; /* Темный фон карточки */
-    --bg-darker: #0f1416; /* Фон кнопок и инпутов */
-    --text: #ffffff;
-    --border-radius: 12px;
+    --accent: #5bc0be; /* Мягкий бирюзовый */
+    --accent-dark: #3a506b;
+    --bg-card: #1c2529; /* Глубокий серо-синий */
+    --bg-input: #0b1316;
+    --text-main: #ffffff;
+    --text-dim: #94a3b8;
+    --radius: 16px;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 body {
     margin: 0;
-    padding: 0;
-    background: #0b0f11; /* Общий фон страницы */
-    font-family: 'Segoe UI', sans-serif;
-    color: var(--text);
+    background: #0f171a; 
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    color: var(--text-main);
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* Контейнер лобби (карточка) */
+/* Карточка лобби */
 #lobby-init, #lobby-waiting {
-    background: var(--bg-main);
-    padding: 30px;
-    border-radius: var(--border-radius);
-    border: 2px solid var(--accent);
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(72, 177, 173, 0.1);
-    width: 380px;
-    position: relative;
+    background: var(--bg-card);
+    padding: 40px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    width: 360px;
+    border: 1px solid rgba(255, 255, 255, 0.05); /* Едва заметная рамка */
+    text-align: center;
 }
 
-/* Заголовок MEGAME */
+/* Заголовок игры */
 h1 {
-    font-size: 32px;
-    font-style: italic;
-    font-weight: 900;
-    margin: 0 0 20px 0;
-    text-align: left;
-    letter-spacing: 2px;
+    font-size: 28px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-bottom: 30px;
+    background: linear-gradient(to bottom, #fff, #a0a6a8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
-/* Текстовые метки (button:, СЕТЬ:, и т.д.) */
-p, label, span {
-    font-size: 14px;
-    color: #a0a6a8;
-    margin: 10px 0;
-}
-
-/* Инпуты (теперь выглядят как на фото) */
+/* Поля ввода */
 input[type="text"] {
     width: 100%;
-    background: var(--bg-darker);
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    padding: 10px;
-    color: var(--text);
+    background: var(--bg-input);
+    border: 1.5px solid rgba(91, 192, 190, 0.2);
+    border-radius: 10px;
+    padding: 14px;
+    color: var(--text-main);
     font-size: 16px;
-    box-sizing: border-box;
     margin-bottom: 20px;
-    outline: none;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
 }
 
-/* Кнопки как в референсе */
+input[type="text"]:focus {
+    border-color: var(--accent);
+    outline: none;
+    background: #141d21;
+}
+
+/* Кнопки */
 button {
     width: 100%;
-    background: var(--bg-darker);
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    color: var(--text);
-    padding: 12px;
-    font-size: 14px;
+    background: var(--accent);
+    color: #0b1316;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 1px;
     cursor: pointer;
-    transition: 0.2s;
-    margin-bottom: 10px;
+    transition: all 0.2s ease;
+    margin-bottom: 12px;
 }
 
 button:hover {
-    background: var(--accent);
-    color: var(--bg-darker);
-    font-weight: bold;
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+    box-shadow: 0 5px 15px rgba(91, 192, 190, 0.3);
 }
 
-/* Специальная кнопка СТАРТ (зеленоватая) */
-#start-btn {
-    border-color: #2ecc71;
-    color: #2ecc71;
+button:active {
+    transform: translateY(0);
 }
 
-#start-btn:hover {
-    background: #2ecc71;
-    color: white;
+/* Вторичные кнопки (войти, создать) */
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Компактный онлайн-счетчик сверху справа */
-.online-info {
-    position: absolute;
-    top: 30px;
-    right: 30px;
-    font-size: 12px;
-    color: var(--accent);
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
 }
 
-/* Окно ожидания (вторая карточка) */
+/* Код комнаты */
 #display-room-id {
     display: block;
-    background: var(--bg-darker);
-    border: 1px dashed var(--accent);
-    padding: 15px;
-    border-radius: 6px;
-    font-size: 24px;
-    letter-spacing: 5px;
-    margin: 15px 0;
+    background: rgba(0, 0, 0, 0.2);
+    border: 2px dashed rgba(91, 192, 190, 0.3);
+    padding: 20px;
+    border-radius: 12px;
+    font-size: 32px;
+    font-weight: 800;
     color: var(--accent);
+    margin: 20px 0;
 }
 
-/* Скрываем ненужные элементы */
-#game-ui, #result-screen {
-    pointer-events: none;
+/* Онлайн счетчик */
+.online-info {
+    position: absolute;
+    top: -25px;
+    right: 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+}
+
+/* UI во время игры (Золото и кнопки снизу) */
+#gold-panel {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: var(--bg-card);
+    padding: 12px 20px;
+    border-radius: 30px; /* Скругленные края для чистого вида */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(255,215,0,0.3);
+}
+
+#controls {
+    position: fixed;
+    bottom: 30px;
+    display: flex;
+    gap: 15px;
+    z-index: 50;
+}
+
+.unit-btn {
+    width: 80px;
+    height: 80px;
+    background: var(--bg-card);
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--text-main);
 }

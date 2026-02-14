@@ -2,63 +2,140 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>War Castle</title>
-    <script src="/socket.io/socket.io.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>War Castle | Multiplayer</title>
+    
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
     <style>
-        /* Вставь сюда тот крутой CSS-код, который мы обсуждали выше */
         :root {
             --accent: #5bc0be;
             --bg-card: #1c2529;
             --bg-input: #0b1316;
             --text-main: #ffffff;
             --radius: 16px;
+            --danger: #ff4757;
         }
-        body { margin: 0; background: #0f171a; font-family: 'Segoe UI', sans-serif; color: white; overflow: hidden; }
-        canvas { display: block; }
 
-        /* Лобби */
+        * { -webkit-tap-highlight-color: transparent; outline: none; }
+
+        body { 
+            margin: 0; 
+            background: #0f171a; 
+            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; 
+            color: white; 
+            overflow: hidden; 
+            height: 100vh;
+            width: 100vw;
+        }
+
+        canvas { display: block; touch-action: none; }
+
+        /* ЛОББИ */
         #lobby {
-            position: fixed; inset: 0; background: rgba(15, 23, 26, 0.95);
-            display: flex; align-items: center; justify-content: center; z-index: 100;
+            position: fixed; inset: 0; 
+            background: radial-gradient(circle at center, #1b272c 0%, #0f171a 100%);
+            display: flex; align-items: center; justify-content: center; 
+            z-index: 100;
         }
-        .card {
-            background: var(--bg-card); padding: 40px; border-radius: var(--radius);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 340px; text-align: center;
-        }
-        h1 { letter-spacing: 4px; font-style: italic; margin-top: 0; }
-        input { 
-            width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 8px; 
-            border: 1px solid var(--accent); background: var(--bg-input); color: white; box-sizing: border-box;
-        }
-        button { 
-            width: 100%; padding: 14px; border: none; border-radius: 8px; 
-            background: var(--accent); color: #0b1316; font-weight: bold; cursor: pointer; margin-bottom: 10px;
-        }
-        .btn-sec { background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); }
 
-        /* Игровой UI */
-        #game-ui { display: none; }
+        .card {
+            background: var(--bg-card); 
+            padding: 30px; 
+            border-radius: var(--radius);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6); 
+            width: 90%;
+            max-width: 340px; 
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        h1 { 
+            letter-spacing: 5px; 
+            font-style: italic; 
+            margin-bottom: 30px; 
+            font-size: 28px;
+            background: linear-gradient(to right, #fff, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        input { 
+            width: 100%; 
+            padding: 15px; 
+            margin-bottom: 20px; 
+            border-radius: 10px; 
+            border: 1px solid rgba(91, 192, 190, 0.3); 
+            background: var(--bg-input); 
+            color: white; 
+            box-sizing: border-box;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        button { 
+            width: 100%; 
+            padding: 16px; 
+            border: none; 
+            border-radius: 10px; 
+            background: var(--accent); 
+            color: #0b1316; 
+            font-weight: 800; 
+            cursor: pointer; 
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+
+        button:active { transform: scale(0.96); opacity: 0.9; }
+
+        .btn-sec { 
+            background: rgba(255,255,255,0.05); 
+            color: white; 
+            border: 1px solid rgba(255,255,255,0.1); 
+        }
+
+        /* ИГРОВОЙ ИНТЕРФЕЙС */
+        #game-ui { display: none; pointer-events: none; }
+        #game-ui * { pointer-events: auto; }
+
         #gold-panel {
-            position: fixed; top: 20px; left: 20px; background: var(--bg-card);
-            padding: 12px 20px; border-radius: 30px; border: 1px solid rgba(255,215,0,0.3);
+            position: fixed; top: 40px; left: 20px; 
+            background: rgba(28, 37, 41, 0.9);
+            padding: 10px 20px; border-radius: 30px; 
+            border: 1px solid rgba(255,215,0,0.3);
+            backdrop-filter: blur(5px);
         }
+
         #hp-bars {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            width: 200px; display: flex; flex-direction: column; gap: 5px;
+            position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
+            width: 180px; display: flex; flex-direction: column; gap: 6px;
         }
-        .hp-cont { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
-        .hp-fill { height: 100%; transition: 0.3s; }
+
+        .hp-cont { 
+            width: 100%; height: 6px; 
+            background: rgba(0,0,0,0.3); 
+            border-radius: 3px; overflow: hidden; 
+        }
+        .hp-fill { height: 100%; transition: width 0.4s ease-out; }
 
         #controls {
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            position: fixed; bottom: 40px; left: 50%; 
+            transform: translateX(-50%);
             display: flex; gap: 15px;
         }
+
         .unit-btn {
-            width: 85px; height: 85px; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            font-size: 11px; cursor: pointer;
+            width: 80px; height: 90px; 
+            background: var(--bg-card); 
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 10px; cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
+
+        .unit-btn span:first-child { font-size: 26px; margin-bottom: 4px; }
     </style>
 </head>
 <body>
@@ -67,23 +144,26 @@
     <div class="card" id="lobby-init">
         <h1>WAR CASTLE</h1>
         <button onclick="createHostRoom()">СОЗДАТЬ СЕРВЕР</button>
-        <input type="text" id="room-input" placeholder="Код комнаты...">
+        <input type="text" id="room-input" placeholder="Код комнаты..." inputmode="numeric">
         <button class="btn-sec" onclick="joinLobby()">ПРИСОЕДИНИТЬСЯ</button>
-        <p style="font-size: 12px; color: var(--accent)">Онлайн: <span id="online-count">0</span></p>
+        <p style="font-size: 13px; color: var(--accent); margin-top: 15px;">
+            Онлайн: <span id="online-count">0</span>
+        </p>
     </div>
 
     <div class="card" id="lobby-waiting" style="display:none;">
-        <p>ВАШ КОД:</p>
-        <div id="display-room-id" style="font-size: 32px; color: var(--accent); margin-bottom: 20px;">0000</div>
-        <p id="waiting-status">Ожидание союзника...</p>
+        <p style="color: rgba(255,255,255,0.5); font-size: 12px; margin-bottom: 5px;">КОД ВАШЕЙ КОМНАТЫ:</p>
+        <div id="display-room-id" style="font-size: 42px; font-weight: 900; color: var(--accent); margin-bottom: 20px; letter-spacing: 2px;">0000</div>
+        <p id="waiting-status" style="margin-bottom: 25px;">Ожидание игрока...</p>
         <button id="start-btn" style="display:none;" onclick="startGameNetwork()">НАЧАТЬ БИТВУ</button>
+        <button class="btn-sec" onclick="location.reload()">ВЫЙТИ</button>
     </div>
 </div>
 
 <div id="game-ui">
     <div id="gold-panel">
-        <span style="color: gold; font-weight: bold;">💰 <span id="gold-val">100</span></span>
-        <span id="gold-income" style="font-size: 12px; color: #4caf50; margin-left: 10px;">+2/s</span>
+        <span style="color: gold; font-weight: bold; font-size: 18px;">💰 <span id="gold-val">100</span></span>
+        <span id="gold-income" style="font-size: 11px; color: #4caf50; display: block;">+2/сек</span>
     </div>
 
     <div id="hp-bars">
@@ -93,13 +173,13 @@
 
     <div id="controls">
         <div class="unit-btn" onclick="spawnUnit()">
-            <span style="font-size: 24px;">⚔️</span>
-            <span>ВОИН</span>
+            <span>⚔️</span>
+            <b>ВОИН</b>
             <span style="color: gold;">50g</span>
         </div>
         <div class="unit-btn" onclick="buildMine()">
-            <span style="font-size: 24px;">💎</span>
-            <span>ШАХТА</span>
+            <span>💎</span>
+            <b>ШАХТА</b>
             <span style="color: gold;">100g</span>
         </div>
     </div>
@@ -108,5 +188,6 @@
 <canvas id="game"></canvas>
 
 <script src="logic.js"></script>
+
 </body>
 </html>

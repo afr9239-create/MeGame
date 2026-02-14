@@ -4,24 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Fantasy Duel 2.0</title>
-    <link rel="stylesheet" href="style.css"> 
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
+
+<div id="lobby" class="overlay">
+    <h1>FANTASY DUEL</h1>
+    <div id="net-info" class="status-text">Подключение к серверу...</div>
+    <button id="start-btn" class="btn-start" onclick="startGameNetwork()" style="display: none;">В БОЙ (МУЛЬТИПЛЕЕР)</button>
+    <button class="btn-start btn-solo" onclick="startSoloGame()">ОДИНОЧНАЯ ИГРА</button>
+</div>
 
 <div class="gui" id="game-ui" style="display: none;">
     <div id="hp-blue-cont" class="base-hp"><div id="hp-blue" class="hp-fill"></div></div>
     <div id="hp-red-cont" class="base-hp"><div id="hp-red" class="hp-fill"></div></div>
     <div class="mana-box">MANA: <span id="mana-val">0</span></div>
     <div class="btn-deploy" onclick="spawnUnit()">SEND</div>
-</div>
-
-<div id="lobby" class="overlay">
-    <h1>FANTASY DUEL</h1>
-    <div id="net-info">Подключение к серверу...</div>
-    <div id="player-info">Ожидание роли...</div>
-    <button id="start-btn" class="btn-start" onclick="socket.emit('startGame')" style="display: none;">В БОЙ!</button>
-    <button class="btn-start btn-solo" onclick="startSoloGame()">ОДИНОЧНАЯ ИГРА</button>
 </div>
 
 <div id="result-screen" class="overlay" style="display: none;">
@@ -31,6 +30,6 @@
 
 <canvas id="game"></canvas>
 
-<script src="logic.js"></script> 
+<script src="logic.js"></script>
 </body>
 </html>

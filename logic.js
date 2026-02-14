@@ -14,7 +14,62 @@ let cameraY = 0;
 const mapImg = new Image(); mapImg.src = 'map.jpg';
 const bazaImg = new Image(); bazaImg.src = 'baza.jpg';
 
-// СЕТЕВАЯ ЛОГИКА
+// ========================================================
+// ЦЕХ №1: ЧЕРТЕЖИ (КЛАССЫ)
+// ========================================================
+
+class Warrior {
+    constructor(id, side, type, x, y) {
+        this.id = id;
+        this.side = side;
+        this.type = type; // 'scout', 'heavy', 'thief'
+        this.x = x;
+        this.y = y;
+        this.hp = 100;
+        
+        // Настройки в зависимости от типа
+        if (type === 'scout') {
+            this.speed = 4;
+            this.damage = 0.5;
+            this.color = (side === 1) ? '#ff4757' : '#00d2ff';
+        } else if (type === 'heavy') {
+            this.speed = 1.5;
+            this.hp = 250;
+            this.damage = 1.2;
+            this.color = (side === 1) ? '#b33939' : '#227093';
+        }
+    }
+
+    update() {
+        let target = null;
+        // Поиск врага
+        units.forEach(o => {
+            if (this.side !== o.side && Math.abs(this.y - o.y) < 50 && Math.abs(this.x - o.x) < 40) {
+                target = o;
+            }
+        });
+
+        if (target) {
+            target.hp -= this.damage; // Бьем врага
+        } else {
+            this.y += (this.side === 1) ? this.speed : -this.speed; // Идем
+        }
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath(); ctx.arc(this.x, this.y, 18, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.stroke();
+        // Полоска жизни
+        ctx.fillStyle = "red"; ctx.fillRect(this.x-20, this.y-35, 40, 5);
+        ctx.fillStyle = "lime"; ctx.fillRect(this.x-20, this.y-35, 40*(this.hp/(this.type === 'heavy' ? 250 : 100)), 5);
+    }
+}
+
+// ========================================================
+// ЦЕХ №2: СЕТЕВАЯ ЛОГИКА И УПРАВЛЕНИЕ
+// ========================================================
+
 socket.on('playerRole', role => { 
     mySide = role; 
     document.getElementById('net-info').innerText = "Ты Игрок " + role;
@@ -25,12 +80,14 @@ socket.on('playerCount', count => {
 });
 
 socket.on('gameStart', () => { launchGame(false); });
-socket.on('spawnUnit', data => { units.push(data); });
+
+socket.on('spawnUnit', data => { 
+    // Создаем воина по чертежу
+    units.push(new Warrior(data.id, data.side, data.type, data.x, data.y)); 
+});
 
 function startSoloGame() {
-    isSolo = true;
-    mySide = 2; 
-    launchGame(true);
+    isSolo = true; mySide = 2; launchGame(true);
 }
 
 function launchGame(solo) {
@@ -43,37 +100,38 @@ function launchGame(solo) {
 function spawnUnit() {
     if (!gameActive) return;
     let targetSide = isSolo ? soloSideTracker : mySide;
-    if (!isSolo && players[mySide].mana < 50) return;
-    if (!isSolo) players[mySide].mana -= 50;
-
-    const unit = {
+    
+    // Пока для теста спавним 'scout', позже добавим выбор
+    const unitData = {
         id: Math.random(),
         side: targetSide,
+        type: 'scout', 
         x: (Math.random() * 400) - 200,
-        y: (targetSide === 1) ? -WORLD.height + 250 : WORLD.height - 250,
-        hp: 100,
-        color: (targetSide === 1) ? '#ff4757' : '#00d2ff'
+        y: (targetSide === 1) ? -WORLD.height + 250 : WORLD.height - 250
     };
 
-    units.push(unit);
-    if (!isSolo) socket.emit('spawnUnit', unit);
+    units.push(new Warrior(unitData.id, unitData.side, unitData.type, unitData.x, unitData.y));
+    if (!isSolo) socket.emit('spawnUnit', unitData);
     else soloSideTracker = (soloSideTracker === 1) ? 2 : 1; 
 }
 
+// ========================================================
+// ЦЕХ №3: ОБЩИЙ ЦИКЛ ИГРЫ
+// ========================================================
+
 function update() {
     if (!gameActive) return;
-    units.forEach((u, i) => {
-        let target = null;
-        units.forEach(o => {
-            if (u.side !== o.side && Math.abs(u.y - o.y) < 50 && Math.abs(u.x - o.x) < 40) target = o;
-        });
-        if (target) target.hp -= 0.8;
-        else u.y += (u.side === 1) ? 3 : -3;
 
-        if (u.side === 2 && u.y < -WORLD.height + 150) { players[1].hp -= 5; u.hp = 0; }
-        if (u.side === 1 && u.y > WORLD.height - 150) { players[2].hp -= 5; u.hp = 0; }
-        if (u.hp <= 0) units.splice(i, 1);
-    });
+    for (let i = units.length - 1; i >= 0; i--) {
+        let u = units[i];
+        u.update(); // Вызываем логику конкретного воина
+
+        // Урон базе
+        if (u.side === 2 && u.y < -WORLD.height + 150) { players[1].hp -= 5; units.splice(i, 1); }
+        else if (u.side === 1 && u.y > WORLD.height - 150) { players[2].hp -= 5; units.splice(i, 1); }
+        else if (u.hp <= 0) { units.splice(i, 1); }
+    }
+
     players[1].mana += 0.2; players[2].mana += 0.2;
     
     if (players[1].hp <= 0 || players[2].hp <= 0) {
@@ -92,31 +150,29 @@ function draw() {
     ctx.save();
     ctx.translate(canvas.width/2, canvas.height/2 - cameraY);
     
+    // Дорога
     if (mapImg.complete) {
         for (let y = -WORLD.height; y < WORLD.height; y += 400) {
             ctx.drawImage(mapImg, -WORLD.width/2, y, WORLD.width, 405);
         }
     }
     
+    // Базы
     if (bazaImg.complete) {
         ctx.drawImage(bazaImg, -WORLD.width/2, -WORLD.height, WORLD.width, 250);
         ctx.save(); ctx.translate(0, WORLD.height); ctx.rotate(Math.PI);
         ctx.drawImage(bazaImg, -WORLD.width/2, -250, WORLD.width, 250); ctx.restore();
     }
     
-    units.forEach(u => {
-        ctx.fillStyle = u.color;
-        ctx.beginPath(); ctx.arc(u.x, u.y, 18, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.stroke();
-        ctx.fillStyle = "red"; ctx.fillRect(u.x-20, u.y-35, 40, 5);
-        ctx.fillStyle = "lime"; ctx.fillRect(u.x-20, u.y-35, 40*(u.hp/100), 5);
-    });
+    // Рисуем всех воинов
+    units.forEach(u => u.draw());
+
     ctx.restore();
     if (gameActive) update();
     requestAnimationFrame(draw);
 }
 
-// УПРАВЛЕНИЕ КАМЕРОЙ
+// КАМЕРА
 let isDrag = false, startY = 0;
 canvas.ontouchstart = e => { isDrag = true; startY = e.touches[0].clientY + cameraY; };
 canvas.ontouchmove = e => { if(isDrag) { cameraY = startY - e.touches[0].clientY; e.preventDefault(); } };

@@ -1,128 +1,94 @@
-/* Основные цвета проекта */
 :root {
-    --bg-color: #0b0c10;
-    --secondary-bg: #1f2833;
-    --accent-color: #66fcf1;
-    --text-color: #c5c6c7;
-    --danger: #ff4757;
-    --success: #2ecc71;
+    --accent: #66fcf1;
+    --text: #ffffff;
+    --bg-dark: #0b0c10;
 }
 
 body {
     margin: 0;
-    padding: 0;
+    background: var(--bg-dark);
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    color: var(--text);
     overflow: hidden;
-    background-color: var(--bg-color);
-    font-family: 'Orbitron', 'Segoe UI', sans-serif; /* Футуристичный шрифт */
 }
 
-/* Фон лобби с эффектом градиента */
+/* Оболочка лобби */
 #lobby {
     position: fixed;
     inset: 0;
-    background: radial-gradient(circle at center, #1f2833 0%, #0b0c10 100%);
-    z-index: 1000;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
+    /* Фон мы зададим отдельно через JS или CSS */
+    background: radial-gradient(circle at center, rgba(31, 40, 51, 0.4) 0%, #0b0c10 100%);
 }
 
-/* Карточка меню */
-.menu-card {
-    background: rgba(11, 12, 16, 0.85);
-    padding: 50px;
-    border-radius: 15px;
-    border: 1px solid var(--accent-color);
-    box-shadow: 0 0 25px rgba(102, 252, 241, 0.2), inset 0 0 15px rgba(102, 252, 241, 0.1);
-    backdrop-filter: blur(10px); /* Эффект матового стекла */
-    width: 320px;
+#lobby-init, #lobby-waiting {
+    width: 260px; /* Компактная ширина */
     text-align: center;
 }
 
-/* Заголовок игры */
 h1 {
-    color: var(--accent-color);
-    text-transform: uppercase;
-    letter-spacing: 8px;
-    margin-bottom: 30px;
-    text-shadow: 0 0 10px var(--accent-color);
+    font-size: 28px;
+    letter-spacing: 5px;
+    margin-bottom: 25px;
+    color: var(--accent);
+    text-shadow: 0 0 10px rgba(102, 252, 241, 0.3);
 }
 
-/* Поле ввода кода */
 input {
     width: 100%;
-    padding: 12px;
-    box-sizing: border-box;
-    background: #000;
-    border: 1px solid var(--secondary-bg);
-    border-radius: 5px;
-    color: var(--accent-color);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid #1f2833;
+    color: var(--accent);
+    padding: 10px;
     font-size: 18px;
     text-align: center;
-    margin-bottom: 20px;
     outline: none;
+    margin-bottom: 20px;
     transition: 0.3s;
 }
 
 input:focus {
-    border-color: var(--accent-color);
-    box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+    border-bottom-color: var(--accent);
 }
 
-/* Стилизация кнопок */
 button {
     width: 100%;
-    padding: 14px;
-    margin-bottom: 15px;
-    border-radius: 5px;
-    border: none;
-    font-weight: bold;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.btn-join {
-    background: var(--accent-color);
-    color: var(--bg-color);
-}
-
-.btn-host {
+    padding: 12px;
+    margin: 5px 0;
     background: transparent;
-    color: var(--accent-color);
-    border: 1px solid var(--accent-color);
-}
-
-.btn-solo {
-    background: #444;
-    color: #fff;
-    font-size: 12px;
+    border: 1px solid #1f2833;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: 0.3s;
 }
 
 button:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 5px 15px rgba(102, 252, 241, 0.4);
-    filter: brightness(1.2);
+    background: var(--accent);
+    color: var(--bg-dark);
+    border-color: var(--accent);
+    box-shadow: 0 0 15px rgba(102, 252, 241, 0.3);
 }
 
-/* Код комнаты в лобби ожидания */
+/* Компактный онлайн-счетчик */
+.online-tag {
+    font-size: 10px;
+    color: #45a29e;
+    margin-bottom: 30px;
+    letter-spacing: 1px;
+}
+
+/* Код комнаты */
 #display-room-id {
-    display: block;
-    font-size: 42px;
-    color: var(--accent-color);
-    margin: 20px 0;
+    font-size: 32px;
     font-weight: bold;
-    text-shadow: 0 0 20px var(--accent-color);
-}
-
-/* Анимация пульсации для онлайна */
-#online-count {
-    color: var(--success);
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% { opacity: 0.6; }
-    50% { opacity: 1; }
-    100% { opacity: 0.6; }
+    color: var(--accent);
+    display: block;
+    margin: 15px 0;
 }

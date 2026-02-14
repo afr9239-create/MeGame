@@ -10,10 +10,10 @@ let mySide = null;
 let gameActive = false;
 let isSolo = false;
 let soloSideTracker = 1; 
-let players = { 1: { hp: 100, mana: 500 }, 2: { hp: 100, mana: 500 } };
+let players = { 1: { hp: 1000, mana: 500 }, 2: { hp: 1000, mana: 500 } }; // HP теперь 1000 как на сервере
 let units = [];
-let buildings = [];   // Список шахт и построек
-let playerGold = 100; // Ваше золото
+let buildings = [];   
+let playerGold = 100; 
 let cameraY = 0;
 
 const mapImg = new Image(); mapImg.src = 'map.jpg';
@@ -37,6 +37,7 @@ class Warrior {
                 if (dist < minDist) { minDist = dist; target = o; }
             }
         });
+
         if (target) {
             if (minDist < 45) target.hp -= this.damage;
             else {
@@ -44,75 +45,50 @@ class Warrior {
                 this.x += Math.cos(angle) * this.speed;
                 this.y += Math.sin(angle) * this.speed;
             }
-        } else { this.y += (this.side === 1) ? this.speed : -this.speed; }
+        } else { 
+            this.y += (this.side === 1) ? this.speed : -this.speed; 
+        }
     }
     draw() {
+        // Добавляем тень для объема (3D эффект)
+        ctx.fillStyle = "rgba(0,0,0,0.2)";
+        ctx.beginPath(); ctx.ellipse(this.x, this.y + 10, 15, 8, 0, 0, Math.PI*2); ctx.fill();
+
         ctx.fillStyle = this.color;
         ctx.beginPath(); ctx.arc(this.x, this.y, 22, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.stroke();
+        
+        // Полоска жизни над головой
         ctx.fillStyle = "red"; ctx.fillRect(this.x-25, this.y-45, 50, 7);
         ctx.fillStyle = "lime"; ctx.fillRect(this.x-25, this.y-45, 50*(this.hp/100), 7);
     }
 }
 
-// --- ФУНКЦИИ ПОСТРОЙКИ (WAR CASTLE) ---
-function buildMine() {
-    if (!gameActive || playerGold < 50) return;
-    playerGold -= 50;
-    
-    const newMine = {
-        id: Math.random(),
-        side: mySide,
-        x: (Math.random() * (WORLD.width - 150)) - (WORLD.width/2 - 75),
-        y: (mySide === 1) ? -WORLD.height + 600 : WORLD.height - 600
-    };
-    
-    buildings.push(newMine);
-    if (!isSolo) socket.emit('spawnBuilding', newMine);
-}
-
-// --- ФУНКЦИИ МЕНЮ ---
-function createHostRoom() {
-    const randomRoom = Math.floor(1000 + Math.random() * 9000).toString();
-    document.getElementById('room-input').value = randomRoom;
-    joinLobby();
-}
-
-function joinLobby() {
-    const roomName = document.getElementById('room-input').value;
-    if (!roomName) return alert("Введите код комнаты!");
-    socket.emit('joinRoom', roomName);
-    document.getElementById('lobby-init').style.display = 'none';
-    document.getElementById('lobby-waiting').style.display = 'block';
-    document.getElementById('display-room-id').innerText = roomName;
-}
-
-function startSoloGame() { isSolo = true; mySide = 2; launchGame(); }
-function startGameNetwork() { socket.emit('startGame'); }
-
 // --- СЕТЕВЫЕ СОБЫТИЯ ---
-socket.on('totalOnline', count => { document.getElementById('online-count').innerText = count; });
 socket.on('playerRole', role => { 
     mySide = role; 
-    document.getElementById('net-info').innerText = "Ты: " + (role === 1 ? "Красный (Верх)" : "Синий (Низ)"); 
+    document.getElementById('net-info').innerText = "Сторона: " + (role === 1 ? "Красный (Верх)" : "Синий (Низ)"); 
 });
-socket.on('playerCount', count => { 
-    if (count >= 2) {
-        document.getElementById('waiting-status').innerText = "Игрок 2 подключился!";
-        if (mySide === 2) document.getElementById('start-btn').style.display = 'block'; 
-    } 
+
+socket.on('updateHP', (data) => {
+    players[1].hp = data.hp1;
+    players[2].hp = data.hp2;
+    // Обновляем визуальные полоски (в процентах от 1000)
+    document.getElementById('hp-red').style.width = (data.hp1 / 10) + '%';
+    document.getElementById('hp-blue').style.width = (data.hp2 / 10) + '%';
 });
-socket.on('gameStart', () => { launchGame(); });
+
+socket.on('gameOver', (data) => {
+    gameActive = false;
+    document.getElementById('result-title').innerText = (data.winner === mySide) ? "ПОБЕДА!" : "ПОРАЖЕНИЕ";
+    document.getElementById('result-screen').style.display = 'flex';
+});
+
 socket.on('spawnUnit', d => { units.push(new Warrior(d.id, d.side, d.type, d.x, d.y)); });
 socket.on('spawnBuilding', b => { buildings.push(b); });
+socket.on('gameStart', () => { launchGame(); });
 
-function launchGame() {
-    gameActive = true;
-    document.getElementById('lobby').style.display = 'none';
-    document.getElementById('game-ui').style.display = 'block';
-    cameraY = (mySide === 1) ? -WORLD.height + 800 : WORLD.height - 800;
-}
-
+// --- ФУНКЦИИ ИГРЫ ---
 function spawnUnit() {
     if (!gameActive || players[mySide].mana < 50) return;
     players[mySide].mana -= 50;
@@ -127,39 +103,48 @@ function spawnUnit() {
     else soloSideTracker = (soloSideTracker === 1) ? 2 : 1;
 }
 
-// --- ГЛАВНЫЙ ЦИКЛ ОБНОВЛЕНИЯ ---
+function buildMine() {
+    if (!gameActive || playerGold < 50) return;
+    playerGold -= 50;
+    const newMine = {
+        id: Math.random(), side: mySide,
+        x: (Math.random() * (WORLD.width - 150)) - (WORLD.width/2 - 75),
+        y: (mySide === 1) ? -WORLD.height + 600 : WORLD.height - 600
+    };
+    buildings.push(newMine);
+    if (!isSolo) socket.emit('spawnBuilding', newMine);
+}
+
 function update() {
     if (!gameActive) return;
 
-    // Обновление юнитов
     for (let i = units.length - 1; i >= 0; i--) {
         let u = units[i]; u.update();
-        if (u.side === 2 && u.y < -WORLD.height + 300) { players[1].hp -= 5; units.splice(i, 1); }
-        else if (u.side === 1 && u.y > WORLD.height - 300) { players[2].hp -= 5; units.splice(i, 1); }
+        
+        // Если юнит дошел до базы врага
+        if (u.side === 2 && u.y < -WORLD.height + 350) {
+            if (!isSolo) socket.emit('baseDamage', { targetSide: 1, damage: 15 });
+            else players[1].hp -= 15;
+            units.splice(i, 1);
+        }
+        else if (u.side === 1 && u.y > WORLD.height - 350) {
+            if (!isSolo) socket.emit('baseDamage', { targetSide: 2, damage: 15 });
+            else players[2].hp -= 15;
+            units.splice(i, 1);
+        }
         else if (u.hp <= 0) units.splice(i, 1);
     }
 
-    // Экономика: Шахты дают золото
+    // Золото от шахт
     if (Math.random() < 0.005) { 
-        const myMines = buildings.filter(b => b.side === mySide);
-        playerGold += myMines.length * 10;
-        const gVal = document.getElementById('gold-val');
-        if(gVal) gVal.innerText = Math.floor(playerGold);
+        playerGold += buildings.filter(b => b.side === mySide).length * 10;
+        document.getElementById('gold-val').innerText = Math.floor(playerGold);
     }
 
     players[1].mana += 0.3; players[2].mana += 0.3;
     document.getElementById('mana-val').innerText = Math.floor(players[mySide].mana);
-    document.getElementById('hp-blue').style.width = players[2].hp + '%';
-    document.getElementById('hp-red').style.width = players[1].hp + '%';
-
-    if (players[1].hp <= 0 || players[2].hp <= 0) {
-        gameActive = false;
-        document.getElementById('result-title').innerText = (players[1].hp <= 0) ? "ПОБЕДА СИНИХ" : "ПОБЕДА КРАСНЫХ";
-        document.getElementById('result-screen').style.display = 'flex';
-    }
 }
 
-// --- ГЛАВНЫЙ ЦИКЛ ОТРИСОВКИ ---
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
@@ -167,50 +152,60 @@ function draw() {
     ctx.scale(ZOOM, ZOOM);
     ctx.translate(0, -cameraY);
 
-    // Фон
-    ctx.fillStyle = '#1a2b1a';
-    ctx.fillRect(-WORLD.width*2, -WORLD.height - 1000, WORLD.width * 4, WORLD.height * 2 + 2000);
-
-    // Карта
+    // Фон и Карта
     if (mapImg.complete) {
-        const roadH = mapImg.height * (WORLD.width / mapImg.width);
-        for (let y = -WORLD.height; y < WORLD.height; y += roadH) { ctx.drawImage(mapImg, -WORLD.width/2, y, WORLD.width, roadH); }
+        ctx.drawImage(mapImg, -WORLD.width/2, -WORLD.height, WORLD.width, WORLD.height * 2);
+    } else {
+        ctx.fillStyle = '#1a2b1a';
+        ctx.fillRect(-WORLD.width/2, -WORLD.height, WORLD.width, WORLD.height * 2);
     }
 
     // Базы
     if (bazaImg.complete) {
-        const bW = 550, bH = 300, offset = 180;
-        ctx.drawImage(bazaImg, -bW/2, -WORLD.height + offset, bW, bH);
-        ctx.save(); ctx.translate(0, WORLD.height - offset); ctx.rotate(Math.PI);
+        const bW = 550, bH = 300;
+        ctx.drawImage(bazaImg, -bW/2, -WORLD.height + 180, bW, bH);
+        ctx.save(); ctx.translate(0, WORLD.height - 180); ctx.rotate(Math.PI);
         ctx.drawImage(bazaImg, -bW/2, -bH, bW, bH); ctx.restore();
     }
 
-    // Рисуем здания (Шахты)
     buildings.forEach(b => {
         ctx.fillStyle = (b.side === 1) ? '#ffcc00' : '#ffa500';
         ctx.fillRect(b.x - 40, b.y - 40, 80, 80);
-        ctx.strokeStyle = "white"; ctx.lineWidth = 4;
-        ctx.strokeRect(b.x - 40, b.y - 40, 80, 80);
+        ctx.strokeStyle = "white"; ctx.lineWidth = 4; ctx.strokeRect(b.x - 40, b.y - 40, 80, 80);
     });
 
-    // Рисуем юнитов
     units.forEach(u => u.draw());
-
     ctx.restore();
+    
     if (gameActive) update();
     requestAnimationFrame(draw);
 }
 
-// --- УПРАВЛЕНИЕ КАМЕРОЙ ---
+// --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+function launchGame() {
+    gameActive = true;
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('game-ui').style.display = 'block';
+    cameraY = (mySide === 1) ? -WORLD.height + 800 : WORLD.height - 800;
+}
+
+function createHostRoom() { 
+    const r = Math.floor(1000 + Math.random() * 9000).toString(); 
+    document.getElementById('room-input').value = r; joinLobby(); 
+}
+function joinLobby() { 
+    const r = document.getElementById('room-input').value; 
+    if(r) { socket.emit('joinRoom', r); document.getElementById('lobby-init').style.display='none'; document.getElementById('lobby-waiting').style.display='block'; document.getElementById('display-room-id').innerText=r; }
+}
+function startGameNetwork() { socket.emit('startGame'); }
+
+// Управление камерой (скролл)
 let isDrag = false, startY = 0;
 canvas.ontouchstart = e => { isDrag = true; startY = e.touches[0].clientY / ZOOM + cameraY; };
 canvas.ontouchmove = e => { 
     if(isDrag) { 
-        let nextY = startY - e.touches[0].clientY / ZOOM;
-        const limit = WORLD.height - 400; 
-        if (nextY > limit) nextY = limit;
-        if (nextY < -limit) nextY = -limit;
-        cameraY = nextY; e.preventDefault(); 
+        cameraY = startY - e.touches[0].clientY / ZOOM;
+        e.preventDefault(); 
     } 
 };
 canvas.ontouchend = () => isDrag = false;

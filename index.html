@@ -6,38 +6,16 @@
     <title>War Castle 2.0</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        :root {
-            --accent: #00d2ff;
-            --bg: #0f171a;
-            --card: #1c2529;
-            --text: #ffffff;
-        }
-        body { 
-            margin: 0; background: var(--bg); color: var(--text); 
-            font-family: 'Segoe UI', sans-serif; display: flex; 
-            align-items: center; justify-content: center; height: 100vh;
-        }
-        .container {
-            background: var(--card); padding: 30px; border-radius: 20px;
-            width: 90%; max-width: 360px; text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-        h1 { font-style: italic; letter-spacing: 2px; color: var(--accent); }
-        input {
-            width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px;
-            border: 1px solid #333; background: #0b1316; color: white; box-sizing: border-box;
-        }
-        button {
-            width: 100%; padding: 14px; margin-top: 10px; border: none;
-            border-radius: 10px; background: var(--accent); color: #0b1316;
-            font-weight: bold; cursor: pointer; transition: 0.2s;
-        }
-        button:disabled { background: #444; color: #888; }
-        .player-slot {
-            background: rgba(255,255,255,0.05); padding: 10px;
-            margin: 5px 0; border-radius: 8px; display: flex; justify-content: space-between;
-        }
-        .badge { background: var(--accent); color: #0b1316; padding: 2px 8px; border-radius: 4px; font-size: 10px; }
+        :root { --accent: #00d2ff; --bg: #0f171a; --card: #1c2529; --text: #ffffff; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        .container { background: var(--card); padding: 30px; border-radius: 20px; width: 90%; max-width: 360px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); }
+        h1 { font-style: italic; letter-spacing: 4px; color: var(--accent); text-shadow: 0 0 15px var(--accent); }
+        input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 10px; border: 1px solid #333; background: #0b1316; color: white; box-sizing: border-box; font-size: 16px; text-align: center; }
+        button { width: 100%; padding: 16px; margin-top: 10px; border: none; border-radius: 12px; background: var(--accent); color: #0b1316; font-weight: bold; cursor: pointer; transition: 0.2s; text-transform: uppercase; }
+        button:active { transform: scale(0.98); }
+        .player-slot { background: rgba(255,255,255,0.05); padding: 12px; margin: 8px 0; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.1); }
+        .badge { background: var(--accent); color: #0b1316; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 800; }
+        #lobby-status { font-size: 14px; color: #888; margin: 15px 0; }
     </style>
 </head>
 <body>
@@ -45,27 +23,26 @@
 <div class="container">
     <div id="screen-nick">
         <h1>WAR CASTLE</h1>
-        <p>Введите ваш никнейм:</p>
-        <input type="text" id="nickname-input" placeholder="Игрок 1" maxlength="12">
+        <p style="opacity: 0.7;">Как тебя зовут, герой?</p>
+        <input type="text" id="nickname-input" placeholder="Твой ник..." maxlength="12">
         <button onclick="saveNickname()">ПРОДОЛЖИТЬ</button>
     </div>
 
     <div id="screen-menu" style="display:none;">
         <h2 id="welcome-text">Привет!</h2>
         <button onclick="createRoom()">СОЗДАТЬ ЛОББИ</button>
-        <div style="margin: 20px 0; color: #555;">ИЛИ</div>
-        <input type="text" id="join-input" placeholder="Код комнаты..." inputmode="numeric">
-        <button class="secondary" onclick="joinRoom()" style="background: #333; color: white;">ВОЙТИ</button>
+        <div style="margin: 20px 0; color: #555; font-size: 12px;">ИЛИ ВОЙДИ ПО КОДУ</div>
+        <input type="text" id="join-input" placeholder="0000" inputmode="numeric">
+        <button onclick="joinRoom()" style="background: #333; color: white;">ПРИСОЕДИНИТЬСЯ</button>
     </div>
 
     <div id="screen-lobby" style="display:none;">
-        <p>КОД КОМНАТЫ:</p>
-        <h2 id="room-code-display" style="color: var(--accent); font-size: 32px;">----</h2>
-        <div id="player-list">
-            </div>
+        <p style="margin-bottom: 0; opacity: 0.6;">КОД КОМНАТЫ:</p>
+        <h2 id="room-code-display" style="color: var(--accent); font-size: 38px; margin-top: 5px;">----</h2>
+        <div id="player-list"></div>
         <p id="lobby-status">Ожидание игроков...</p>
         <button id="start-btn" style="display:none;" onclick="requestStart()">НАЧАТЬ ИГРУ</button>
-        <button onclick="location.reload()" style="background: none; color: #ff4757; font-size: 12px;">ВЫЙТИ</button>
+        <button onclick="location.reload()" style="background: none; color: #ff4757; font-size: 13px; margin-top: 20px;">ВЫЙТИ ИЗ ЛОББИ</button>
     </div>
 </div>
 

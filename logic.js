@@ -3,7 +3,7 @@ const socket = io('https://megame-server.onrender.com', { transports: ['websocke
 let myNickname = localStorage.getItem('war_castle_nick') || "";
 let currentRoom = null;
 
-// Инициализация при загрузке
+// Загружаем ник из памяти, если он есть
 if (myNickname) {
     document.getElementById('nickname-input').value = myNickname;
 }
@@ -17,7 +17,7 @@ function saveNickname() {
     
     document.getElementById('screen-nick').style.display = 'none';
     document.getElementById('screen-menu').style.display = 'block';
-    document.getElementById('welcome-text').innerText = `Привет, ${myNickname}!`;
+    document.getElementById('welcome-text').innerText = `Командир, ${myNickname}`;
 }
 
 function createRoom() {
@@ -28,7 +28,7 @@ function createRoom() {
 function joinRoom() {
     const code = document.getElementById('join-input').value.trim();
     if (code.length === 4) joinProcess(code);
-    else alert("Введите 4-значный код!");
+    else alert("Введите 4 цифры кода!");
 }
 
 function joinProcess(code) {
@@ -40,24 +40,32 @@ function joinProcess(code) {
     document.getElementById('room-code-display').innerText = code;
 }
 
-// СЛУШАТЕЛИ СЕРВЕРА
+// ОБНОВЛЕНИЕ СПИСКА ИГРОКОВ В ЛОББИ
 socket.on('updatePlayerList', (players) => {
     const list = document.getElementById('player-list');
     list.innerHTML = "";
     
-    players.forEach(p => {
+    players.forEach((p, index) => {
         const div = document.createElement('div');
         div.className = 'player-slot';
-        div.innerHTML = `<span>${p.nickname}</span> ${p.isHost ? '<span class="badge">HOST</span>' : ''}`;
+        // Первый в списке — Хост
+        const isHost = index === 0;
+        div.innerHTML = `
+            <span>${p.nickname} ${p.id === socket.id ? '(Вы)' : ''}</span>
+            ${isHost ? '<span class="badge">HOST</span>' : ''}
+        `;
         list.appendChild(div);
     });
 
     if (players.length >= 2) {
-        document.getElementById('lobby-status').innerText = "Готовы к битве!";
-        // Показываем кнопку старта только хосту (первому в списке)
+        document.getElementById('lobby-status').innerText = "Все на месте!";
+        // Только первый игрок (хост) видит кнопку старта
         if (players[0].id === socket.id) {
             document.getElementById('start-btn').style.display = 'block';
         }
+    } else {
+        document.getElementById('lobby-status').innerText = "Ожидание противника...";
+        document.getElementById('start-btn').style.display = 'none';
     }
 });
 
@@ -66,6 +74,7 @@ function requestStart() {
 }
 
 socket.on('gameStarted', () => {
-    alert("Игра начинается! (Здесь будет переход к новой механике)");
-    // Здесь мы позже добавим смену экрана на игровой холст
+    console.log("Игра началась!");
+    // Здесь мы в будущем будем загружать саму игру
+    document.querySelector('.container').innerHTML = "<h1>ЗАГРУЗКА БИТВЫ...</h1>";
 });

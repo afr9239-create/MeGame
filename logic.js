@@ -2,7 +2,6 @@ const socket = io('https://megame-server.onrender.com', { transports: ['websocke
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-// ПАРАМЕТРЫ МИРА
 const WORLD = { width: 700, height: 2500 }; 
 const ZOOM = 0.55; 
 
@@ -17,28 +16,19 @@ let cameraY = 0;
 const mapImg = new Image(); mapImg.src = 'map.jpg';
 const bazaImg = new Image(); bazaImg.src = 'baza.jpg';
 
-// КЛАСС ВОИНА
 class Warrior {
     constructor(id, side, type, x, y) {
-        this.id = id;
-        this.side = side;
-        this.type = type;
-        this.x = x;
-        this.y = y;
-        this.hp = 100;
-        this.range = 250; 
-        this.speed = 3.5;
-        this.damage = 0.7;
+        this.id = id; this.side = side; this.type = type;
+        this.x = x; this.y = y; this.hp = 100;
+        this.range = 250; this.speed = 3.5; this.damage = 0.7;
         this.color = (side === 1) ? '#ff4757' : '#00d2ff';
     }
-
     update() {
         let target = null;
         let minDist = this.range;
         units.forEach(o => {
             if (this.side !== o.side) {
-                let dx = o.x - this.x;
-                let dy = o.y - this.y;
+                let dx = o.x - this.x; let dy = o.y - this.y;
                 let dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist < minDist) { minDist = dist; target = o; }
             }
@@ -50,11 +40,8 @@ class Warrior {
                 this.x += Math.cos(angle) * this.speed;
                 this.y += Math.sin(angle) * this.speed;
             }
-        } else {
-            this.y += (this.side === 1) ? this.speed : -this.speed;
-        }
+        } else { this.y += (this.side === 1) ? this.speed : -this.speed; }
     }
-
     draw() {
         ctx.fillStyle = this.color;
         ctx.beginPath(); ctx.arc(this.x, this.y, 22, 0, Math.PI*2); ctx.fill();
@@ -64,7 +51,7 @@ class Warrior {
     }
 }
 
-// ЛОББИ И ОНЛАЙН
+// ФУНКЦИИ МЕНЮ
 function createHostRoom() {
     const randomRoom = Math.floor(1000 + Math.random() * 9000).toString();
     document.getElementById('room-input').value = randomRoom;
@@ -83,9 +70,18 @@ function joinLobby() {
 function startSoloGame() { isSolo = true; mySide = 2; launchGame(); }
 function startGameNetwork() { socket.emit('startGame'); }
 
+// СЕТЕВЫЕ СОБЫТИЯ
 socket.on('totalOnline', count => { document.getElementById('online-count').innerText = count; });
-socket.on('playerRole', role => { mySide = role; document.getElementById('net-info').innerText = "Твоя сторона: " + (role === 1 ? "Красные" : "Синие"); });
-socket.on('playerCount', count => { if (count >= 2 && mySide === 2) document.getElementById('start-btn').style.display = 'block'; });
+socket.on('playerRole', role => { 
+    mySide = role; 
+    document.getElementById('net-info').innerText = "Ты: " + (role === 1 ? "Красный (Верх)" : "Синий (Низ)"); 
+});
+socket.on('playerCount', count => { 
+    if (count >= 2) {
+        document.getElementById('waiting-status').innerText = "Игрок 2 подключился!";
+        if (mySide === 2) document.getElementById('start-btn').style.display = 'block'; 
+    } 
+});
 socket.on('gameStart', () => { launchGame(); });
 socket.on('spawnUnit', d => { units.push(new Warrior(d.id, d.side, d.type, d.x, d.y)); });
 
@@ -135,26 +131,18 @@ function draw() {
     ctx.translate(canvas.width/2, canvas.height/2);
     ctx.scale(ZOOM, ZOOM);
     ctx.translate(0, -cameraY);
-
     ctx.fillStyle = '#1a2b1a';
     ctx.fillRect(-WORLD.width*2, -WORLD.height - 1000, WORLD.width * 4, WORLD.height * 2 + 2000);
-
     if (mapImg.complete) {
         const roadH = mapImg.height * (WORLD.width / mapImg.width);
-        for (let y = -WORLD.height; y < WORLD.height; y += roadH) {
-            ctx.drawImage(mapImg, -WORLD.width/2, y, WORLD.width, roadH);
-        }
+        for (let y = -WORLD.height; y < WORLD.height; y += roadH) { ctx.drawImage(mapImg, -WORLD.width/2, y, WORLD.width, roadH); }
     }
-
     if (bazaImg.complete) {
         const bW = 550, bH = 300, offset = 180;
         ctx.drawImage(bazaImg, -bW/2, -WORLD.height + offset, bW, bH);
-        ctx.save();
-        ctx.translate(0, WORLD.height - offset); ctx.rotate(Math.PI);
-        ctx.drawImage(bazaImg, -bW/2, -bH, bW, bH);
-        ctx.restore();
+        ctx.save(); ctx.translate(0, WORLD.height - offset); ctx.rotate(Math.PI);
+        ctx.drawImage(bazaImg, -bW/2, -bH, bW, bH); ctx.restore();
     }
-
     units.forEach(u => u.draw());
     ctx.restore();
     if (gameActive) update();

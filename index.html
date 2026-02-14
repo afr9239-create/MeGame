@@ -3,30 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MeGame Multiplayer</title>
+    <title>War Castle - Multiplayer</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { margin:0; overflow:hidden; background:#0b0c10; font-family: 'Segoe UI', sans-serif; }
         #lobby { position: fixed; inset: 0; background: radial-gradient(circle, #1f2833 0%, #0b0c10 100%); z-index: 1000; display: flex; justify-content: center; align-items: center; color: #66fcf1; text-align: center; }
         .menu-card { background: rgba(31, 40, 51, 0.8); padding: 40px; border-radius: 20px; border: 2px solid #66fcf1; box-shadow: 0 0 30px rgba(102, 252, 241, 0.3); width: 300px; }
         input { padding: 12px; width: 80%; border-radius: 8px; border: 1px solid #45a29e; background: #0b0c10; color: #66fcf1; margin-bottom: 15px; font-size: 16px; outline: none; }
-        button { padding: 14px; width: 100%; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; margin-bottom: 10px; transition: 0.3s; }
+        button { padding: 14px; width: 100%; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; margin-bottom: 10px; transition: 0.3s; pointer-events: auto; }
         .btn-join { background: #66fcf1; color: #0b0c10; }
         .btn-host { background: #45a29e; color: white; }
         .btn-solo { background: #1f2833; color: #c5c6c7; border: 1px solid #45a29e; }
         button:hover { filter: brightness(1.2); transform: scale(1.02); }
         #online-count { font-weight: bold; color: #45a29e; }
+        
+        /* Стили для новых элементов игры */
+        .resource-text { text-shadow: 2px 2px #000; font-family: monospace; }
+        .btn-build { 
+            position: absolute; bottom: 130px; right: 30px; 
+            width: 90px; height: 60px; background: #f1c40f; 
+            color: #000; border: 3px solid #1f2833; 
+            border-radius: 10px; font-size: 12px;
+            box-shadow: 0 0 15px rgba(241, 196, 15, 0.5);
+        }
     </style>
 </head>
 <body>
 
     <div id="lobby">
         <div id="lobby-init" class="menu-card">
-            <h1 style="margin-top:0; letter-spacing: 5px;">MEGAME</h1>
+            <h1 style="margin-top:0; letter-spacing: 5px;">WAR CASTLE</h1>
             <p>В сети: <span id="online-count">0</span> игроков</p>
-            
             <input type="text" id="room-input" placeholder="Код комнаты...">
-            
             <button class="btn-join" onclick="joinLobby()">ВОЙТИ В ЛОББИ</button>
             <button class="btn-host" onclick="createHostRoom()">СОЗДАТЬ ХОСТ</button>
             <button class="btn-solo" onclick="startSoloGame()">ОДИНОЧНЫЙ ТЕСТ</button>
@@ -49,7 +57,13 @@
             <div id="hp-red" style="width:100%; height:50%; background:#ff4757;"></div>
             <div id="hp-blue" style="width:100%; height:50%; background:#00d2ff;"></div>
         </div>
-        <div style="position:absolute; bottom:30px; left:30px; color:#66fcf1; font-size:24px; font-weight:bold; text-shadow: 2px 2px #000;">MANA: <span id="mana-val">0</span></div>
+
+        <div style="position:absolute; bottom:30px; left:30px;">
+            <div class="resource-text" style="color:#66fcf1; font-size:24px;">MANA: <span id="mana-val">0</span></div>
+            <div class="resource-text" style="color:#f1c40f; font-size:24px;">GOLD: <span id="gold-val">100</span></div>
+        </div>
+
+        <button class="btn-build" onclick="buildMine()">+ ШАХТА (50g)</button>
         <button onclick="spawnUnit()" style="position:absolute; bottom:30px; right:30px; width:90px; height:90px; border-radius:50%; background:#66fcf1; border:5px solid #1f2833; font-weight:bold; pointer-events:auto; box-shadow: 0 0 20px #66fcf1;">WAR</button>
     </div>
 

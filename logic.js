@@ -2,8 +2,9 @@ const socket = io('https://megame-server.onrender.com', { transports: ['websocke
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-const WORLD = { width: 800, height: 3000 }; 
-const ZOOM = 0.6; // Еще чуть-чуть отдалил для обзора
+// ПАРАМЕТРЫ МИРА
+const WORLD = { width: 700, height: 2500 }; 
+const ZOOM = 0.55; // Оптимальное отдаление
 
 let mySide = null; 
 let gameActive = false;
@@ -26,30 +27,25 @@ class Warrior {
         this.hp = 100;
         this.range = 250; 
         this.speed = 3.5;
-        this.damage = 0.6;
+        this.damage = 0.7;
         this.color = (side === 1) ? '#ff4757' : '#00d2ff';
     }
 
     update() {
         let target = null;
         let minDist = this.range;
-
         units.forEach(o => {
             if (this.side !== o.side) {
                 let dx = o.x - this.x;
                 let dy = o.y - this.y;
-                let dist = Math.sqrt(dx * dx + dy * dy);
+                let dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist < minDist) { minDist = dist; target = o; }
             }
         });
-
         if (target) {
-            if (minDist < 45) {
-                target.hp -= this.damage;
-            } else {
-                let dx = target.x - this.x;
-                let dy = target.y - this.y;
-                let angle = Math.atan2(dy, dx);
+            if (minDist < 45) target.hp -= this.damage;
+            else {
+                let angle = Math.atan2(target.y - this.y, target.x - this.x);
                 this.x += Math.cos(angle) * this.speed;
                 this.y += Math.sin(angle) * this.speed;
             }
@@ -67,46 +63,30 @@ class Warrior {
     }
 }
 
-// Функции управления
-function startSoloGame() {
-    console.log("Solo mode started");
-    isSolo = true;
-    mySide = 2; 
-    launchGame();
-}
+// УПРАВЛЕНИЕ
+function startSoloGame() { isSolo = true; mySide = 2; launchGame(); }
+function startGameNetwork() { socket.emit('startGame'); }
 
-function startGameNetwork() {
-    socket.emit('startGame');
-}
-
-socket.on('playerRole', role => { 
-    mySide = role; 
-    document.getElementById('net-info').innerText = "Ты Игрок " + role;
-});
-
-socket.on('playerCount', count => {
-    if (count >= 2 && mySide === 2) document.getElementById('start-btn').style.display = 'block';
-});
-
+socket.on('playerRole', role => { mySide = role; document.getElementById('net-info').innerText = "Игрок " + role; });
+socket.on('playerCount', count => { if (count >= 2 && mySide === 2) document.getElementById('start-btn').style.display = 'block'; });
 socket.on('gameStart', () => { launchGame(); });
-socket.on('spawnUnit', data => { units.push(new Warrior(data.id, data.side, data.type, data.x, data.y)); });
+socket.on('spawnUnit', d => { units.push(new Warrior(d.id, d.side, d.type, d.x, d.y)); });
 
 function launchGame() {
     gameActive = true;
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('game-ui').style.display = 'block';
-    cameraY = (mySide === 1) ? -WORLD.height + 600 : WORLD.height - 600;
+    cameraY = (mySide === 1) ? -WORLD.height + 800 : WORLD.height - 800;
 }
 
 function spawnUnit() {
-    if (!gameActive) return;
+    if (!gameActive || players[mySide].mana < 50) return;
+    players[mySide].mana -= 50;
     let targetSide = isSolo ? soloSideTracker : mySide;
     const unitData = {
-        id: Math.random(),
-        side: targetSide,
-        type: 'scout',
-        x: (Math.random() * (WORLD.width - 100)) - (WORLD.width/2 - 50),
-        y: (targetSide === 1) ? -WORLD.height + 350 : WORLD.height - 350
+        id: Math.random(), side: targetSide, type: 'scout',
+        x: (Math.random() * (WORLD.width - 120)) - (WORLD.width/2 - 60),
+        y: (targetSide === 1) ? -WORLD.height + 400 : WORLD.height - 400
     };
     units.push(new Warrior(unitData.id, unitData.side, unitData.type, unitData.x, unitData.y));
     if (!isSolo) socket.emit('spawnUnit', unitData);
@@ -116,17 +96,12 @@ function spawnUnit() {
 function update() {
     if (!gameActive) return;
     for (let i = units.length - 1; i >= 0; i--) {
-        let u = units[i];
-        u.update();
-        if (u.side === 2 && u.y < -WORLD.height + 250) { players[1].hp -= 5; units.splice(i, 1); }
-        else if (u.side === 1 && u.y > WORLD.height - 250) { players[2].hp -= 5; units.splice(i, 1); }
-        else if (u.hp <= 0) { units.splice(i, 1); }
+        let u = units[i]; u.update();
+        if (u.side === 2 && u.y < -WORLD.height + 300) { players[1].hp -= 5; units.splice(i, 1); }
+        else if (u.side === 1 && u.y > WORLD.height - 300) { players[2].hp -= 5; units.splice(i, 1); }
+        else if (u.hp <= 0) units.splice(i, 1);
     }
-    players[1].mana += 0.2; players[2].mana += 0.2;
-    updateUI();
-}
-
-function updateUI() {
+    players[1].mana += 0.3; players[2].mana += 0.3;
     document.getElementById('mana-val').innerText = Math.floor(players[mySide].mana);
     document.getElementById('hp-blue').style.width = players[2].hp + '%';
     document.getElementById('hp-red').style.width = players[1].hp + '%';
@@ -144,42 +119,46 @@ function draw() {
     ctx.scale(ZOOM, ZOOM);
     ctx.translate(0, -cameraY);
 
-    // Фон
+    // Трава
     ctx.fillStyle = '#1a2b1a';
-    ctx.fillRect(-WORLD.width, -WORLD.height - 500, WORLD.width * 2, WORLD.height * 2 + 1000);
+    ctx.fillRect(-WORLD.width*2, -WORLD.height - 1000, WORLD.width * 4, WORLD.height * 2 + 2000);
 
-    // Дорога плиткой
+    // Дорога
     if (mapImg.complete) {
-        const imgW = WORLD.width;
-        const imgH = mapImg.height * (imgW / mapImg.width);
-        for (let y = -WORLD.height; y < WORLD.height; y += imgH) {
-            ctx.drawImage(mapImg, -imgW/2, y, imgW, imgH);
+        const roadH = mapImg.height * (WORLD.width / mapImg.width);
+        for (let y = -WORLD.height; y < WORLD.height; y += roadH) {
+            ctx.drawImage(mapImg, -WORLD.width/2, y, WORLD.width, roadH);
         }
     }
 
-    // Базы
+    // Базы (С ОТСТУПОМ)
     if (bazaImg.complete) {
-        const bW = WORLD.width + 150;
-        const bH = 350;
-        ctx.drawImage(bazaImg, -bW/2, -WORLD.height - 50, bW, bH);
+        const bW = 550, bH = 300, offset = 180;
+        ctx.drawImage(bazaImg, -bW/2, -WORLD.height + offset, bW, bH);
         ctx.save();
-        ctx.translate(0, WORLD.height + 50);
-        ctx.rotate(Math.PI);
+        ctx.translate(0, WORLD.height - offset); ctx.rotate(Math.PI);
         ctx.drawImage(bazaImg, -bW/2, -bH, bW, bH);
         ctx.restore();
     }
 
     units.forEach(u => u.draw());
     ctx.restore();
-
     if (gameActive) update();
     requestAnimationFrame(draw);
 }
 
-// Управление камерой
+// КАМЕРА С ОГРАНИЧЕНИЕМ
 let isDrag = false, startY = 0;
 canvas.ontouchstart = e => { isDrag = true; startY = e.touches[0].clientY / ZOOM + cameraY; };
-canvas.ontouchmove = e => { if(isDrag) { cameraY = startY - e.touches[0].clientY / ZOOM; e.preventDefault(); } };
+canvas.ontouchmove = e => { 
+    if(isDrag) { 
+        let nextY = startY - e.touches[0].clientY / ZOOM;
+        const limit = WORLD.height - 400; 
+        if (nextY > limit) nextY = limit;
+        if (nextY < -limit) nextY = -limit;
+        cameraY = nextY; e.preventDefault(); 
+    } 
+};
 canvas.ontouchend = () => isDrag = false;
 
 window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });

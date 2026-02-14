@@ -1,35 +1,15 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fantasy Duel 2.0</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-</head>
-<body>
+<div id="lobby" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #121212; z-index: 1000; display: flex; justify-content: center; align-items: center; color: white; font-family: sans-serif;">
+    <div id="lobby-init" style="text-align: center;">
+        <h2>MeGame: Создать лобби</h2>
+        <input type="text" id="room-input" placeholder="Код комнаты" style="padding: 10px; border-radius: 5px; border: none;">
+        <button onclick="joinLobby()" style="padding: 10px 20px; background: #66fcf1; border: none; cursor: pointer; font-weight: bold;">Войти</button>
+        <p>Или</p>
+        <button onclick="startSoloGame()" style="background: #444; color: white; border: none; padding: 5px 10px;">Тест (Соло)</button>
+    </div>
 
-<div id="lobby" class="overlay">
-    <h1>FANTASY DUEL</h1>
-    <div id="net-info" class="status-text">Подключение...</div>
-    <button id="start-btn" class="btn-start" onclick="startGameNetwork()" style="display: none;">В БОЙ (МУЛЬТИПЛЕЕР)</button>
-    <button class="btn-start btn-solo" onclick="startSoloGame()">ОДИНОЧНАЯ ИГРА</button>
+    <div id="lobby-waiting" style="display: none; text-align: center;">
+        <h3 id="net-info">Подключение...</h3>
+        <p>Ожидание друга в комнате...</p>
+        <button id="start-btn" onclick="startGameNetwork()" style="display: none; background: #2ecc71; color: white; padding: 15px 30px; border: none; cursor: pointer;">ЗАПУСТИТЬ ИГРУ</button>
+    </div>
 </div>
-
-<div class="gui" id="game-ui" style="display: none;">
-    <div id="hp-blue-cont" class="base-hp"><div id="hp-blue" class="hp-fill"></div></div>
-    <div id="hp-red-cont" class="base-hp"><div id="hp-red" class="hp-fill"></div></div>
-    <div class="mana-box">MANA: <span id="mana-val">0</span></div>
-    <div class="btn-deploy" onclick="spawnUnit()">SEND</div>
-</div>
-
-<div id="result-screen" class="overlay" style="display: none;">
-    <h1 id="result-title">КОНЕЦ ИГРЫ</h1>
-    <button class="btn-start" onclick="location.reload()">В МЕНЮ</button>
-</div>
-
-<canvas id="game"></canvas>
-
-<script src="logic.js"></script>
-</body>
-</html>

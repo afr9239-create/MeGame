@@ -165,3 +165,136 @@ canvas.ontouchend = () => isDrag = false;
 window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 draw();
+// ==========================================
+// БЛОК 1: ЭКОНОМИКА И ПОСТРОЙКИ (WAR CASTLE)
+// ==========================================
+
+let playerGold = 100; // Стартовое золото
+let buildings = [];   // Список всех построек (шахты, турели)
+
+const BUILDING_TYPES = {
+    MINE: { cost: 150, income: 15, hp: 200, color: '#ffd700', label: 'ШАХТА' },
+    TURRET: { cost: 250, damage: 2, range: 400, hp: 500, color: '#95a5a6', label: 'ТУРЕЛЬ' }
+};
+
+// Функция постройки (вызывать при нажатии на кнопку в UI)
+function buildStructure(type) {
+    const config = BUILDING_TYPES[type];
+    if (playerGold < config.cost) return console.log("Нужно больше золота!");
+
+    playerGold -= config.cost;
+    
+    const newBuilding = {
+        id: Math.random(),
+        side: mySide,
+        type: type,
+        hp: config.hp,
+        x: (Math.random() * 400) - 200, // Случайное место у базы
+        y: (mySide === 1) ? -WORLD.height + 600 : WORLD.height - 600
+    };
+
+    buildings.push(newBuilding);
+    if (!isSolo) socket.emit('spawnBuilding', newBuilding); // Синхронизация с сервером
+}
+
+// Каждые 4 секунды шахты приносят золото
+setInterval(() => {
+    if (!gameActive) return;
+    const myMines = buildings.filter(b => b.type === 'MINE' && b.side === mySide);
+    const earned = myMines.length * BUILDING_TYPES.MINE.income;
+    playerGold += earned;
+    
+    // Обновляем текст золота (если в HTML есть элемент с id="gold-val")
+    const goldUI = document.getElementById('gold-val');
+    if (goldUI) goldUI.innerText = Math.floor(playerGold);
+}, 4000);
+
+// Слушаем сервер на предмет построек врага
+socket.on('spawnBuilding', (bData) => {
+    buildings.push(bData);
+});
+// ==========================================
+// БЛОК 2: ВИЗУАЛИЗАЦИЯ И УРОН (WAR CASTLE)
+// ==========================================
+
+// Эту функцию мы вызываем внутри вашего основного draw()
+function drawBuildings() {
+    buildings.forEach(b => {
+        const config = BUILDING_TYPES[b.type];
+        ctx.fillStyle = config.color;
+        
+        // Рисуем здание как квадрат
+        ctx.fillRect(b.x - 40, b.y - 40, 80, 80);
+        
+        // Полоска HP над зданием
+        ctx.fillStyle = "red";
+        ctx.fillRect(b.x - 40, b.y - 60, 80, 8);
+        ctx.fillStyle = "lime";
+        ctx.fillRect(b.x - 40, b.y - 60, 80 * (b.hp / config.hp), 8);
+        
+        // Название здания
+        ctx.fillStyle = "white";
+        ctx.font = "bold 20px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(config.label, b.x, b.y + 10);
+    });
+}
+
+// Добавим вызов отрисовки зданий в ваш существующий цикл
+// Нам нужно "вклиниться" в ваш draw(), поэтому просто добавим строчку ниже:
+const originalDraw = draw;
+draw = function() {
+    originalDraw(); // Запускаем старый draw
+    
+    // Теперь рисуем здания ПОВЕРХ карты, но ДО интерфейса
+    ctx.save();
+    ctx.translate(canvas.width/2, canvas.height/2);
+    ctx.scale(ZOOM, ZOOM);
+    ctx.translate(0, -cameraY);
+    drawBuildings();
+    ctx.restore();
+};
+// ==========================================
+// БЛОК 3: РАЗНООБРАЗИЕ ВОЙСК (WAR CASTLE)
+// ==========================================
+
+const UNIT_TYPES = {
+    KNIGHT: { hp: 100, speed: 3.5, damage: 1, range: 45, cost: 50, color: null }, // Цвет берется из стороны
+    MAGE:   { hp: 60,  speed: 2.5, damage: 3, range: 300, cost: 120, color: '#a55eea' }, 
+    DRAGON: { hp: 300, speed: 4.5, damage: 5, range: 100, cost: 400, color: '#eb4d4b' }
+};
+
+// Улучшенная функция спавна (заменяет или дополняет старую)
+function spawnAdvancedUnit(typeName) {
+    const config = UNIT_TYPES[typeName];
+    
+    // Проверка: хватает ли маны (или золота, можно поменять)
+    if (players[mySide].mana < config.cost) return console.log("Маны мало!");
+    players[mySide].mana -= config.cost;
+
+    let targetSide = isSolo ? soloSideTracker : mySide;
+    
+    // Создаем юнита на основе конфига
+    const newUnit = new Warrior(
+        Math.random(), 
+        targetSide, 
+        typeName, 
+        (Math.random() * (WORLD.width - 120)) - (WORLD.width/2 - 60),
+        (targetSide === 1) ? -WORLD.height + 400 : WORLD.height - 400
+    );
+
+    // Настраиваем уникальные параметры
+    newUnit.hp = config.hp;
+    newUnit.maxHp = config.hp;
+    newUnit.speed = config.speed;
+    newUnit.damage = config.damage;
+    newUnit.range = config.range;
+    if (config.color) newUnit.color = config.color;
+
+    units.push(newUnit);
+    
+    if (!isSolo) socket.emit('spawnUnit', {
+        id: newUnit.id, side: newUnit.side, type: typeName, x: newUnit.x, y: newUnit.y
+    });
+    else if (isSolo) soloSideTracker = (soloSideTracker === 1) ? 2 : 1;
+}

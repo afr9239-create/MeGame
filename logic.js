@@ -1,12 +1,18 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
 
-// --- Настройки Оружия ---
+// Растягиваем на весь экран
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Настройки
 const WEAPONS = {
-    'Pistol': { ammo: 12, fireRate: 400, color: '#f1c40f', spread: 0.05, speed: 10 },
-    'Rifle': { ammo: 30, fireRate: 100, color: '#e67e22', spread: 0.1, speed: 15 }
+    'Pistol': { ammo: 15, fireRate: 400, color: '#00ff00', speed: 12 },
+    'Rifle': { ammo: 40, fireRate: 100, color: '#ff00ff', speed: 18 }
 };
 
 let player = {
@@ -16,25 +22,25 @@ let player = {
     angle: 0,
     weapon: null,
     ammo: 0,
-    speed: 4
+    speed: 4,
+    color: '#ffdbac' // Телесный цвет (Skin Tone)
 };
 
-let bullets = [];
-let droppedWeapons = []; // Оружие на полу
 let keys = {};
+let bullets = [];
+let droppedWeapons = [];
 let lastShot = 0;
 let isShooting = false;
 
-// Слушатели событий
-window.addEventListener('keydown', (e) => keys[e.code] = true);
-window.addEventListener('keyup', (e) => keys[e.code] = false);
-window.addEventListener('mousedown', () => isShooting = true);
-window.addEventListener('mouseup', () => isShooting = false);
-window.addEventListener('mousemove', (e) => {
+// Управление
+window.addEventListener('keydown', e => keys[e.code] = true);
+window.addEventListener('keyup', e => keys[e.code] = false);
+window.addEventListener('mousemove', e => {
     player.angle = Math.atan2(e.clientY - player.y, e.clientX - player.x);
 });
+window.addEventListener('mousedown', () => isShooting = true);
+window.addEventListener('mouseup', () => isShooting = false);
 
-// Спавн оружия в случайном месте
 function spawnWeapon() {
     const types = Object.keys(WEAPONS);
     const type = types[Math.floor(Math.random() * types.length)];
@@ -46,66 +52,66 @@ function spawnWeapon() {
     });
 }
 
-// Подбор оружия (клавиша E)
-function tryPickUp() {
-    if (keys['KeyE']) {
-        droppedWeapons.forEach((w, index) => {
-            let dist = Math.hypot(player.x - w.x, player.y - w.y);
-            if (dist < 40) {
-                player.weapon = w.type;
-                player.ammo = WEAPONS[w.type].ammo;
-                droppedWeapons.splice(index, 1);
-                updateUI();
-            }
-        });
-    }
-}
-
-function shoot() {
-    if (!player.weapon || player.ammo <= 0) return;
-    
-    let now = Date.now();
-    if (now - lastShot > WEAPONS[player.weapon].fireRate) {
-        bullets.push({
-            x: player.x + Math.cos(player.angle) * 25,
-            y: player.y + Math.sin(player.angle) * 25,
-            vx: Math.cos(player.angle + (Math.random() - 0.5) * WEAPONS[player.weapon].spread) * WEAPONS[player.weapon].speed,
-            vy: Math.sin(player.angle + (Math.random() - 0.5) * WEAPONS[player.weapon].spread) * WEAPONS[player.weapon].speed,
-            color: WEAPONS[player.weapon].color
-        });
-        player.ammo--;
-        lastShot = now;
-        updateUI();
-    }
-}
-
-function updateUI() {
-    document.getElementById('weapon-name').innerText = player.weapon || "Кулаки";
-    document.getElementById('ammo-count').innerText = player.weapon ? player.ammo : "∞";
-}
-
 function update() {
-    // Движение WASD
+    // Движение
     if (keys['KeyW']) player.y -= player.speed;
     if (keys['KeyS']) player.y += player.speed;
     if (keys['KeyA']) player.x -= player.speed;
     if (keys['KeyD']) player.x += player.speed;
 
-    if (isShooting) shoot();
-    tryPickUp();
+    // Подбор оружия на E
+    if (keys['KeyE']) {
+        droppedWeapons.forEach((w, i) => {
+            if (Math.hypot(player.x - w.x, player.y - w.y) < 40) {
+                player.weapon = w.type;
+                player.ammo = WEAPONS[w.type].ammo;
+                droppedWeapons.splice(i, 1);
+                document.getElementById('weapon-name').innerText = player.weapon;
+                document.getElementById('ammo-count').innerText = player.ammo;
+            }
+        });
+    }
 
-    // Обновление пуль
+    // Стрельба
+    if (isShooting && player.weapon && player.ammo > 0) {
+        let now = Date.now();
+        if (now - lastShot > WEAPONS[player.weapon].fireRate) {
+            bullets.push({
+                x: player.x,
+                y: player.y,
+                vx: Math.cos(player.angle) * WEAPONS[player.weapon].speed,
+                vy: Math.sin(player.angle) * WEAPONS[player.weapon].speed,
+                color: WEAPONS[player.weapon].color
+            });
+            player.ammo--;
+            lastShot = now;
+            document.getElementById('ammo-count').innerText = player.ammo;
+        }
+    }
+
+    // Пули
     bullets.forEach((b, i) => {
-        b.x += b.vx;
-        b.y += b.vy;
+        b.x += b.vx; b.y += b.vy;
         if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) bullets.splice(i, 1);
     });
 }
 
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Очистка и фон
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Рисуем оружие на полу
+    // Рисуем ЗЕЛЕНУЮ сетку
+    ctx.strokeStyle = '#004400';
+    ctx.lineWidth = 1;
+    for(let i=0; i<canvas.width; i+=50) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+    }
+    for(let i=0; i<canvas.height; i+=50) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+    }
+
+    // Оружие на земле
     droppedWeapons.forEach(w => {
         ctx.fillStyle = w.color;
         ctx.fillRect(w.x - 10, w.y - 10, 20, 20);
@@ -113,28 +119,28 @@ function draw() {
         ctx.strokeRect(w.x - 12, w.y - 12, 24, 24);
     });
 
-    // Рисуем пули
+    // Пули
     bullets.forEach(b => {
         ctx.fillStyle = b.color;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, 4, 0, Math.PI*2);
         ctx.fill();
     });
 
-    // Рисуем игрока (кружочек)
+    // Игрок (Телесный кружочек)
     ctx.save();
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle);
     
+    // Руки/Оружие (черная палка)
+    ctx.fillStyle = '#000';
+    ctx.fillRect(10, -5, 30, 10);
+    
     // Тело
-    ctx.fillStyle = '#3498db';
+    ctx.fillStyle = player.color;
     ctx.beginPath();
     ctx.arc(0, 0, player.size, 0, Math.PI * 2);
     ctx.fill();
-    
-    // Направление взгляда / Оружие
-    ctx.fillStyle = player.weapon ? WEAPONS[player.weapon].color : '#555';
-    ctx.fillRect(15, -5, 25, 10); 
     
     ctx.restore();
 
@@ -142,7 +148,7 @@ function draw() {
     requestAnimationFrame(draw);
 }
 
-// Каждые 5 секунд спавним новое оружие
-setInterval(spawnWeapon, 5000);
-spawnWeapon(); // Первое оружие сразу
+// Запуск
+setInterval(spawnWeapon, 4000);
+spawnWeapon();
 draw();

@@ -1,71 +1,148 @@
-import io.socket.client.IO;
-import io.socket.client.Socket;
-import org.json.JSONObject;
-import java.net.URI;
-import java.util.Arrays;
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-public class WarCastleClient {
-    private Socket socket;
-    private String myNickname = "Командир_Java";
-    private String currentRoom = null;
+// --- Настройки Оружия ---
+const WEAPONS = {
+    'Pistol': { ammo: 12, fireRate: 400, color: '#f1c40f', spread: 0.05, speed: 10 },
+    'Rifle': { ammo: 30, fireRate: 100, color: '#e67e22', spread: 0.1, speed: 15 }
+};
 
-    public void connect() {
-        try {
-            // Настройки сокета (как в твоем JS: transports websocket)
-            IO.Options options = IO.Options.builder()
-                    .setTransports(new String[]{"websocket"})
-                    .build();
+let player = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    size: 20,
+    angle: 0,
+    weapon: null,
+    ammo: 0,
+    speed: 4
+};
 
-            socket = IO.socket(URI.create("https://megame-server.onrender.com"), options);
+let bullets = [];
+let droppedWeapons = []; // Оружие на полу
+let keys = {};
+let lastShot = 0;
+let isShooting = false;
 
-            // Обработка подключения
-            socket.on(Socket.EVENT_CONNECT, args -> {
-                System.out.println("Подключено к серверу War Castle!");
-            });
+// Слушатели событий
+window.addEventListener('keydown', (e) => keys[e.code] = true);
+window.addEventListener('keyup', (e) => keys[e.code] = false);
+window.addEventListener('mousedown', () => isShooting = true);
+window.addEventListener('mouseup', () => isShooting = false);
+window.addEventListener('mousemove', (e) => {
+    player.angle = Math.atan2(e.clientY - player.y, e.clientX - player.x);
+});
 
-            // ОБНОВЛЕНИЕ СПИСКА ИГРОКОВ (Аналог твоего updatePlayerList)
-            socket.on("updatePlayerList", args -> {
-                System.out.println("Список игроков обновлен: " + args[0]);
-                // Здесь можно добавить логику проверки: если мы первые в списке — мы ХОСТ
-            });
+// Спавн оружия в случайном месте
+function spawnWeapon() {
+    const types = Object.keys(WEAPONS);
+    const type = types[Math.floor(Math.random() * types.length)];
+    droppedWeapons.push({
+        x: Math.random() * (canvas.width - 50) + 25,
+        y: Math.random() * (canvas.height - 50) + 25,
+        type: type,
+        color: WEAPONS[type].color
+    });
+}
 
-            // СТАРТ ИГРЫ (Аналог твоего gameStarted)
-            socket.on("gameStarted", args -> {
-                System.out.println("БИТВА НАЧИНАЕТСЯ! Загрузка ресурсов...");
-            });
-
-            socket.connect();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Метод для создания комнаты (как твой createRoom)
-    public void createRoom() {
-        String code = String.valueOf((int)(1000 + Math.random() * 9000));
-        joinProcess(code);
-    }
-
-    // Метод для входа (как твой joinProcess)
-    public void joinProcess(String code) {
-        this.currentRoom = code;
-        try {
-            JSONObject data = new JSONObject();
-            data.put("roomId", code);
-            data.put("nickname", myNickname);
-            
-            socket.emit("joinLobby", data);
-            System.out.println("Заходим в лобби: " + code);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Запрос старта (как твой requestStart)
-    public void requestStart() {
-        if (currentRoom != null) {
-            socket.emit("startGameRequest", currentRoom);
-        }
+// Подбор оружия (клавиша E)
+function tryPickUp() {
+    if (keys['KeyE']) {
+        droppedWeapons.forEach((w, index) => {
+            let dist = Math.hypot(player.x - w.x, player.y - w.y);
+            if (dist < 40) {
+                player.weapon = w.type;
+                player.ammo = WEAPONS[w.type].ammo;
+                droppedWeapons.splice(index, 1);
+                updateUI();
+            }
+        });
     }
 }
+
+function shoot() {
+    if (!player.weapon || player.ammo <= 0) return;
+    
+    let now = Date.now();
+    if (now - lastShot > WEAPONS[player.weapon].fireRate) {
+        bullets.push({
+            x: player.x + Math.cos(player.angle) * 25,
+            y: player.y + Math.sin(player.angle) * 25,
+            vx: Math.cos(player.angle + (Math.random() - 0.5) * WEAPONS[player.weapon].spread) * WEAPONS[player.weapon].speed,
+            vy: Math.sin(player.angle + (Math.random() - 0.5) * WEAPONS[player.weapon].spread) * WEAPONS[player.weapon].speed,
+            color: WEAPONS[player.weapon].color
+        });
+        player.ammo--;
+        lastShot = now;
+        updateUI();
+    }
+}
+
+function updateUI() {
+    document.getElementById('weapon-name').innerText = player.weapon || "Кулаки";
+    document.getElementById('ammo-count').innerText = player.weapon ? player.ammo : "∞";
+}
+
+function update() {
+    // Движение WASD
+    if (keys['KeyW']) player.y -= player.speed;
+    if (keys['KeyS']) player.y += player.speed;
+    if (keys['KeyA']) player.x -= player.speed;
+    if (keys['KeyD']) player.x += player.speed;
+
+    if (isShooting) shoot();
+    tryPickUp();
+
+    // Обновление пуль
+    bullets.forEach((b, i) => {
+        b.x += b.vx;
+        b.y += b.vy;
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) bullets.splice(i, 1);
+    });
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Рисуем оружие на полу
+    droppedWeapons.forEach(w => {
+        ctx.fillStyle = w.color;
+        ctx.fillRect(w.x - 10, w.y - 10, 20, 20);
+        ctx.strokeStyle = "white";
+        ctx.strokeRect(w.x - 12, w.y - 12, 24, 24);
+    });
+
+    // Рисуем пули
+    bullets.forEach(b => {
+        ctx.fillStyle = b.color;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // Рисуем игрока (кружочек)
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(player.angle);
+    
+    // Тело
+    ctx.fillStyle = '#3498db';
+    ctx.beginPath();
+    ctx.arc(0, 0, player.size, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Направление взгляда / Оружие
+    ctx.fillStyle = player.weapon ? WEAPONS[player.weapon].color : '#555';
+    ctx.fillRect(15, -5, 25, 10); 
+    
+    ctx.restore();
+
+    update();
+    requestAnimationFrame(draw);
+}
+
+// Каждые 5 секунд спавним новое оружие
+setInterval(spawnWeapon, 5000);
+spawnWeapon(); // Первое оружие сразу
+draw();

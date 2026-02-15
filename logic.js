@@ -1,80 +1,71 @@
-const socket = io('https://megame-server.onrender.com', { transports: ['websocket'] });
+import io.socket.client.IO;
+import io.socket.client.Socket;
+import org.json.JSONObject;
+import java.net.URI;
+import java.util.Arrays;
 
-let myNickname = localStorage.getItem('war_castle_nick') || "";
-let currentRoom = null;
+public class WarCastleClient {
+    private Socket socket;
+    private String myNickname = "Командир_Java";
+    private String currentRoom = null;
 
-// Загружаем ник из памяти, если он есть
-if (myNickname) {
-    document.getElementById('nickname-input').value = myNickname;
-}
+    public void connect() {
+        try {
+            // Настройки сокета (как в твоем JS: transports websocket)
+            IO.Options options = IO.Options.builder()
+                    .setTransports(new String[]{"websocket"})
+                    .build();
 
-function saveNickname() {
-    const input = document.getElementById('nickname-input').value.trim();
-    if (input.length < 2) return alert("Ник слишком короткий!");
-    
-    myNickname = input;
-    localStorage.setItem('war_castle_nick', myNickname);
-    
-    document.getElementById('screen-nick').style.display = 'none';
-    document.getElementById('screen-menu').style.display = 'block';
-    document.getElementById('welcome-text').innerText = `Командир, ${myNickname}`;
-}
+            socket = IO.socket(URI.create("https://megame-server.onrender.com"), options);
 
-function createRoom() {
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    joinProcess(code);
-}
+            // Обработка подключения
+            socket.on(Socket.EVENT_CONNECT, args -> {
+                System.out.println("Подключено к серверу War Castle!");
+            });
 
-function joinRoom() {
-    const code = document.getElementById('join-input').value.trim();
-    if (code.length === 4) joinProcess(code);
-    else alert("Введите 4 цифры кода!");
-}
+            // ОБНОВЛЕНИЕ СПИСКА ИГРОКОВ (Аналог твоего updatePlayerList)
+            socket.on("updatePlayerList", args -> {
+                System.out.println("Список игроков обновлен: " + args[0]);
+                // Здесь можно добавить логику проверки: если мы первые в списке — мы ХОСТ
+            });
 
-function joinProcess(code) {
-    currentRoom = code;
-    socket.emit('joinLobby', { roomId: code, nickname: myNickname });
-    
-    document.getElementById('screen-menu').style.display = 'none';
-    document.getElementById('screen-lobby').style.display = 'block';
-    document.getElementById('room-code-display').innerText = code;
-}
+            // СТАРТ ИГРЫ (Аналог твоего gameStarted)
+            socket.on("gameStarted", args -> {
+                System.out.println("БИТВА НАЧИНАЕТСЯ! Загрузка ресурсов...");
+            });
 
-// ОБНОВЛЕНИЕ СПИСКА ИГРОКОВ В ЛОББИ
-socket.on('updatePlayerList', (players) => {
-    const list = document.getElementById('player-list');
-    list.innerHTML = "";
-    
-    players.forEach((p, index) => {
-        const div = document.createElement('div');
-        div.className = 'player-slot';
-        // Первый в списке — Хост
-        const isHost = index === 0;
-        div.innerHTML = `
-            <span>${p.nickname} ${p.id === socket.id ? '(Вы)' : ''}</span>
-            ${isHost ? '<span class="badge">HOST</span>' : ''}
-        `;
-        list.appendChild(div);
-    });
+            socket.connect();
 
-    if (players.length >= 2) {
-        document.getElementById('lobby-status').innerText = "Все на месте!";
-        // Только первый игрок (хост) видит кнопку старта
-        if (players[0].id === socket.id) {
-            document.getElementById('start-btn').style.display = 'block';
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-    } else {
-        document.getElementById('lobby-status').innerText = "Ожидание противника...";
-        document.getElementById('start-btn').style.display = 'none';
     }
-});
 
-function requestStart() {
-    socket.emit('startGameRequest', currentRoom);
+    // Метод для создания комнаты (как твой createRoom)
+    public void createRoom() {
+        String code = String.valueOf((int)(1000 + Math.random() * 9000));
+        joinProcess(code);
+    }
+
+    // Метод для входа (как твой joinProcess)
+    public void joinProcess(String code) {
+        this.currentRoom = code;
+        try {
+            JSONObject data = new JSONObject();
+            data.put("roomId", code);
+            data.put("nickname", myNickname);
+            
+            socket.emit("joinLobby", data);
+            System.out.println("Заходим в лобби: " + code);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Запрос старта (как твой requestStart)
+    public void requestStart() {
+        if (currentRoom != null) {
+            socket.emit("startGameRequest", currentRoom);
+        }
+    }
 }
-
-socket.on('gameStarted', () => {
-    console.log("Игра началась!");
-    // Здесь мы в будущем будем загружать саму игру
-    document.querySelector('.container').innerHTML = "<h1>ЗАГРУЗКА БИТВЫ...</h1>";
-});

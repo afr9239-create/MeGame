@@ -1,12 +1,17 @@
 body {
     margin: 0;
+    padding: 0;
     overflow: hidden;
-    background: #121212;
-    font-family: 'Courier New', Courier, monospace;
+    background-color: #1a1a1a; /* Темный фон вокруг */
 }
 
-canvas {
+#gameCanvas {
     display: block;
+    background-color: #2c3e50; /* Цвет пола - должен быть виден! */
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
 }
 
 #hud {
@@ -14,21 +19,11 @@ canvas {
     bottom: 20px;
     left: 20px;
     color: #0f0;
-    background: rgba(0, 0, 0, 0.7);
-    padding: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 15px;
     border: 2px solid #0f0;
-    border-radius: 10px;
+    border-radius: 5px;
+    font-family: monospace;
+    z-index: 10; /* HUD должен быть поверх всего */
     pointer-events: none;
-    z-index: 10;
-}
-
-.stat-item {
-    font-size: 20px;
-    margin-bottom: 5px;
-}
-
-.hint {
-    font-size: 12px;
-    color: #0a0;
-    margin-top: 10px;
 }

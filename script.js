@@ -10,13 +10,13 @@ window.onload = function() {
     resize();
 
     // Настройки МИРА
-    const WORLD_WIDTH = 3000;  // Огромная карта
+    const WORLD_WIDTH = 3000;
     const WORLD_HEIGHT = 3000;
 
     let player = {
         x: WORLD_WIDTH / 2,
         y: WORLD_HEIGHT / 2,
-        size: 25,
+        size: 20,
         color: '#ffdbac',
         angle: 0,
         speed: 5,
@@ -24,16 +24,14 @@ window.onload = function() {
         ammo: 0
     };
 
-    // Камера
     let camera = { x: 0, y: 0 };
-
     let keys = {};
     let bullets = [];
     let droppedWeapons = [];
     let lastShot = 0;
+    let lastWeaponSpawn = 0;
     let isShooting = false;
 
-    // Оружие
     const WEAPONS = {
         'Pistol': { ammo: 15, fireRate: 400, color: '#00ff00', speed: 12 },
         'Rifle': { ammo: 40, fireRate: 100, color: '#ff00ff', speed: 18 }
@@ -44,36 +42,37 @@ window.onload = function() {
     window.onmousedown = () => isShooting = true;
     window.onmouseup = () => isShooting = false;
     window.onmousemove = (e) => {
-        // Угол с учетом положения камеры
         player.angle = Math.atan2(e.clientY - (player.y - camera.y), e.clientX - (player.x - camera.x));
     };
 
-    function spawnWeapon() {
-        if (droppedWeapons.length > 20) return; // Чтобы не лагало от кучи пушек
-        const types = Object.keys(WEAPONS);
-        const type = types[Math.floor(Math.random() * types.length)];
-        droppedWeapons.push({
-            x: Math.random() * WORLD_WIDTH,
-            y: Math.random() * WORLD_HEIGHT,
-            type: type,
-            color: WEAPONS[type].color
-        });
-    }
-
-    function update() {
-        // Движение
+    function update(now) {
+        // 1. Плавное движение
         if (keys['KeyW'] && player.y > 0) player.y -= player.speed;
         if (keys['KeyS'] && player.y < WORLD_HEIGHT) player.y += player.speed;
         if (keys['KeyA'] && player.x > 0) player.x -= player.speed;
         if (keys['KeyD'] && player.x < WORLD_WIDTH) player.x += player.speed;
 
-        // Камера следит за игроком
+        // 2. Камера (без резких скачков)
         camera.x = player.x - canvas.width / 2;
         camera.y = player.y - canvas.height / 2;
 
-        // Стрельба
+        // 3. Спавн оружия через время (вместо setInterval)
+        if (now - lastWeaponSpawn > 4000) {
+            if (droppedWeapons.length < 15) {
+                const types = Object.keys(WEAPONS);
+                const type = types[Math.floor(Math.random() * types.length)];
+                droppedWeapons.push({
+                    x: Math.random() * WORLD_WIDTH,
+                    y: Math.random() * WORLD_HEIGHT,
+                    type: type,
+                    color: WEAPONS[type].color
+                });
+            }
+            lastWeaponSpawn = now;
+        }
+
+        // 4. Стрельба
         if (isShooting && player.weapon && player.ammo > 0) {
-            let now = Date.now();
             if (now - lastShot > WEAPONS[player.weapon].fireRate) {
                 bullets.push({
                     x: player.x,
@@ -81,7 +80,7 @@ window.onload = function() {
                     vx: Math.cos(player.angle) * WEAPONS[player.weapon].speed,
                     vy: Math.sin(player.angle) * WEAPONS[player.weapon].speed,
                     color: WEAPONS[player.weapon].color,
-                    dist: 0 // Считаем дистанцию
+                    life: 100 // Жизненный цикл пули
                 });
                 player.ammo--;
                 lastShot = now;
@@ -89,84 +88,79 @@ window.onload = function() {
             }
         }
 
-        // ОПТИМИЗАЦИЯ: Обновление и удаление лишних пуль
+        // 5. Оптимизация пуль (удаляем мертвые)
         for (let i = bullets.length - 1; i >= 0; i--) {
             let b = bullets[i];
             b.x += b.vx;
             b.y += b.vy;
-            b.dist += 1; 
-
-            // Если пуля слишком далеко или вылетела за мир — удаляем её!
-            if (b.dist > 100 || b.x < 0 || b.x > WORLD_WIDTH || b.y < 0 || b.y > WORLD_HEIGHT) {
-                bullets.splice(i, 1);
-            }
+            b.life--;
+            if (b.life <= 0) bullets.splice(i, 1);
         }
 
-        // Подбор оружия
+        // 6. Подбор оружия
         if (keys['KeyE']) {
             for (let i = droppedWeapons.length - 1; i >= 0; i--) {
                 let w = droppedWeapons[i];
-                if (Math.hypot(player.x - w.x, player.y - w.y) < 40) {
+                if (Math.abs(player.x - w.x) < 30 && Math.abs(player.y - w.y) < 30) {
                     player.weapon = w.type;
                     player.ammo = WEAPONS[w.type].ammo;
                     droppedWeapons.splice(i, 1);
                     document.getElementById('weapon-name').innerText = player.weapon;
                     document.getElementById('ammo-count').innerText = player.ammo;
+                    break; 
                 }
             }
         }
     }
 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
+    function draw(now) {
+        update(now);
+
+        // Очистка экрана
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
         ctx.save();
-        // Сдвигаем всё рисование под камеру
         ctx.translate(-camera.x, -camera.y);
 
-        // Фон мира
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-
-        // Зеленая сетка
-        ctx.strokeStyle = '#004400';
+        // Рисуем сетку только там, где видит камера (Оптимизация!)
+        ctx.strokeStyle = '#003300';
         ctx.lineWidth = 1;
-        for(let i = 0; i <= WORLD_WIDTH; i += 100) {
-            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, WORLD_HEIGHT); ctx.stroke();
+        let startX = Math.floor(camera.x / 100) * 100;
+        let startY = Math.floor(camera.y / 100) * 100;
+
+        for (let x = startX; x < startX + canvas.width + 100; x += 100) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke();
         }
-        for(let i = 0; i <= WORLD_HEIGHT; i += 100) {
-            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(WORLD_WIDTH, i); ctx.stroke();
+        for (let y = startY; y < startY + canvas.height + 100; y += 100) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke();
         }
 
-        // Оружие на полу
-        droppedWeapons.forEach(w => {
+        // Оружие
+        for (let w of droppedWeapons) {
             ctx.fillStyle = w.color;
             ctx.fillRect(w.x - 10, w.y - 10, 20, 20);
-        });
+        }
 
         // Пули
-        bullets.forEach(b => {
+        for (let b of bullets) {
             ctx.fillStyle = b.color;
-            ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        });
+            ctx.fillRect(b.x - 2, b.y - 2, 4, 4);
+        }
 
         // Игрок
         ctx.save();
         ctx.translate(player.x, player.y);
         ctx.rotate(player.angle);
-        ctx.fillStyle = '#000'; // Оружие в руках
-        ctx.fillRect(10, -5, 30, 10);
+        ctx.fillStyle = '#000'; // Ствол
+        ctx.fillRect(12, -4, 25, 8);
         ctx.fillStyle = player.color; // Тело
         ctx.beginPath(); ctx.arc(0, 0, player.size, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
 
-        ctx.restore(); // Конец влияния камеры
-
-        update();
+        ctx.restore();
         requestAnimationFrame(draw);
     }
 
-    setInterval(spawnWeapon, 3000);
-    spawnWeapon();
-    draw();
+    requestAnimationFrame(draw);
 };

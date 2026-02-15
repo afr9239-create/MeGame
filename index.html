@@ -2,18 +2,17 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>War Castle: Arena Shooter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>War Castle Shooter</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="hud">
-        <div class="stat-item">Оружие: <span id="weapon-name">Кулаки</span></div>
-        <div class="stat-item">Патроны: <span id="ammo-count">∞</span></div>
-        <div class="hint">WASD - Движение | Мышь - Стрельба | E - Поднять оружие</div>
+        <div>Оружие: <span id="weapon-name">Кулаки</span></div>
+        <div>Патроны: <span id="ammo-count">0</span></div>
+        <div style="font-size: 10px; color: #555;">WASD - Ходить | E - Подобрать | Клик - Огонь</div>
     </div>
     <canvas id="gameCanvas"></canvas>
-
-    <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

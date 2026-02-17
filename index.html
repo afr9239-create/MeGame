@@ -2,182 +2,151 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>War Castle Multiplayer</title>
+    <title>War Castle Online</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="/socket.io/socket.io.js"></script>
+    
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; touch-action: none; }
+        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; }
         
         /* Статус сети */
-        #net-status { position: fixed; top: 10px; right: 10px; display: flex; align-items: center; gap: 8px; z-index: 1000; font-size: 12px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 20px; }
-        #status-dot { width: 10px; height: 10px; background: #555; border-radius: 50%; }
-        .online-dot { background: #00ff00 !important; box-shadow: 0 0 10px #00ff00; }
+        #net { position: fixed; top: 10px; right: 10px; display: flex; align-items: center; gap: 8px; z-index: 1000; padding: 5px 10px; background: rgba(0,0,0,0.7); border-radius: 20px; border: 1px solid #444; }
+        #dot { width: 10px; height: 10px; background: red; border-radius: 50%; transition: 0.3s; }
+        .online { background: #00ff00 !important; box-shadow: 0 0 10px #00ff00; }
 
-        /* Лобби */
-        #lobby { position: fixed; inset: 0; background: radial-gradient(circle, #222, #000); z-index: 500; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #online-count { font-size: 20px; color: #00ff00; margin: 20px; text-shadow: 0 0 5px #000; }
-        .play-btn { padding: 15px 50px; font-size: 24px; background: #4444ff; color: white; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 6px 0 #2222aa; transition: 0.1s; }
-        .play-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #2222aa; }
-        .play-btn:disabled { background: #555; box-shadow: none; opacity: 0.6; }
-
-        /* Игра */
+        /* Интерфейс */
+        #lobby { position: fixed; inset: 0; background: #111; z-index: 500; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
         #game-ui { display: none; position: fixed; width: 100%; height: 100%; pointer-events: none; }
-        .top-stats { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; font-size: 22px; font-weight: bold; }
+        .stats { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-around; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px #000; }
         
-        #shop { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: center; gap: 15px; pointer-events: auto; }
-        .item { background: rgba(0,0,0,0.8); border: 2px solid #4444ff; width: 65px; height: 80px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
-        .item.selected { border-color: #00ff00; background: #333; }
-        
-        canvas { display: block; background: #2d5a27; }
+        #shop { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: center; gap: 10px; pointer-events: auto; }
+        .item { background: #222; border: 2px solid #4444ff; padding: 10px; border-radius: 10px; width: 60px; text-align: center; cursor: pointer; }
+        .item.active { border-color: #00ff00; background: #333; }
+
+        canvas { display: block; background: #325d2d; }
+        button { padding: 15px 40px; font-size: 20px; background: #4444ff; color: white; border: none; border-radius: 10px; cursor: pointer; }
+        button:disabled { opacity: 0.5; }
     </style>
 </head>
 <body>
 
-<div id="net-status">
-    <span id="status-label">OFFLINE</span>
-    <div id="status-dot"></div>
+<div id="net">
+    <span id="net-text">CONNECTING</span>
+    <div id="dot"></div>
 </div>
 
 <div id="lobby">
-    <h1 style="font-size: 48px; margin: 0; color: #4444ff; text-shadow: 2px 2px #000;">WAR CASTLE</h1>
-    <div id="online-count">ИГРОКОВ В СЕТИ: 0</div>
-    <button class="play-btn" id="find-btn" onclick="requestMatch()">В БОЙ!</button>
+    <h1 style="color:#4444ff">WAR CASTLE</h1>
+    <div id="counter" style="margin: 20px; color:#0f0; font-size: 24px;">Ожидание сервера...</div>
+    <button id="find-btn" onclick="startSearch()">В БОЙ!</button>
 </div>
 
 <div id="game-ui">
-    <div class="top-stats">
-        <div style="color: gold;">💰 <span id="gold-txt">100</span></div>
-        <div style="color: #ff4444;">❤ ВРАГ: <span id="hp-txt">1000</span></div>
+    <div class="stats">
+        <div style="color: gold;">💰 <span id="gold">100</span></div>
+        <div style="color: #f44;">❤ HP: <span id="hp">1000</span></div>
     </div>
     <div id="shop">
-        <div class="item" id="btn-barracks" onclick="setMode('barracks', 50)">🏠<br><small>50</small></div>
-        <div class="item" id="btn-mine" onclick="setMode('mine', 100)">💎<br><small>100</small></div>
+        <div class="item" id="btn-barracks" onclick="select('barracks', 50)">🏠<br>50</div>
+        <div class="item" id="btn-mine" onclick="select('mine', 100)">💎<br>100</div>
     </div>
 </div>
 
 <canvas id="gameCanvas"></canvas>
 
 <script>
-    // ПРЯМОЕ ПОДКЛЮЧЕНИЕ
-    const socket = io();
+    // ПРЯМОЙ АДРЕС ТВОЕГО СЕРВЕРА
+    const socket = io("https://war-castle-v2.onrender.com", {
+        transports: ["polling", "websocket"]
+    });
+
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-
-    let playerRole = null;
-    let room = null;
-    let gold = 100;
-    let enemyHp = 1000;
-    let minesCount = 0;
-    let selectedMode = null;
-    let cost = 0;
-
+    let role, room, gold = 100, hp = 1000, mines = 0, selected = null, cost = 0;
     let state = { buildings: [], units: [] };
 
-    // --- СЕТЕВЫЕ СОБЫТИЯ ---
+    // --- СЕТЬ ---
     socket.on('connect', () => {
-        document.getElementById('status-dot').classList.add('online-dot');
-        document.getElementById('status-label').innerText = "ONLINE";
+        document.getElementById('dot').classList.add('online');
+        document.getElementById('net-text').innerText = "ONLINE";
     });
 
-    socket.on('onlineUpdate', (count) => {
-        document.getElementById('online-count').innerText = `ИГРОКОВ В СЕТИ: ${count}`;
+    socket.on('onlineUpdate', (c) => {
+        document.getElementById('counter').innerText = `ИГРОКОВ В СЕТИ: ${c}`;
     });
 
-    function requestMatch() {
+    function startSearch() {
         socket.emit('findGame');
         document.getElementById('find-btn').innerText = "ПОИСК...";
         document.getElementById('find-btn').disabled = true;
     }
 
-    socket.on('startGame', (data) => {
-        playerRole = data.role;
-        room = data.room;
+    socket.on('startGame', (d) => {
+        role = d.role; room = d.room;
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-ui').style.display = 'block';
-        resize();
-        requestAnimationFrame(update);
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        requestAnimationFrame(loop);
     });
 
     socket.on('syncBuilding', (d) => {
-        // Зеркалим для противника
         addBuilding(d.type, d.role, canvas.width - d.x, canvas.height - d.y);
     });
 
-    // --- ИГРОВАЯ ЛОГИКА ---
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+    // --- ИГРА ---
+    function select(type, c) {
+        selected = type; cost = c;
+        document.querySelectorAll('.item').forEach(i => i.classList.remove('active'));
+        document.getElementById('btn-' + type).classList.add('active');
     }
 
-    function setMode(m, c) {
-        selectedMode = m;
-        cost = c;
-        document.querySelectorAll('.item').forEach(i => i.classList.remove('selected'));
-        document.getElementById('btn-' + m).classList.add('selected');
+    canvas.onclick = (e) => {
+        if (!selected || gold < cost || e.clientY < canvas.height / 2 + 50) return;
+        gold -= cost;
+        addBuilding(selected, role, e.clientX, e.clientY);
+        socket.emit('placeBuilding', { type: selected, x: e.clientX, y: e.clientY, role, room });
+        selected = null;
+        document.querySelectorAll('.item').forEach(i => i.classList.remove('active'));
+    };
+
+    function addBuilding(type, bRole, x, y) {
+        state.buildings.push({ type, role: bRole, x, y, last: Date.now() });
+        if (bRole === role && type === 'mine') mines++;
     }
 
-    canvas.addEventListener('pointerdown', (e) => {
-        if (!selectedMode || gold < cost) return;
-        // Строить можно только на своей половине (нижняя часть экрана)
-        if (e.clientY > canvas.height / 2 + 50) {
-            gold -= cost;
-            addBuilding(selectedMode, playerRole, e.clientX, e.clientY);
-            socket.emit('placeBuilding', { type: selectedMode, x: e.clientX, y: e.clientY, role: playerRole, room: room });
-            selectedMode = null;
-            document.querySelectorAll('.item').forEach(i => i.classList.remove('selected'));
-        }
-    });
-
-    function addBuilding(type, role, x, y) {
-        state.buildings.push({ type, role, x, y, lastSpawn: Date.now() });
-        if (role === playerRole && type === 'mine') minesCount++;
-    }
-
-    function update() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Поле (трава и центр)
+    function loop() {
+        ctx.clearRect(0,0,canvas.width, canvas.height);
         ctx.strokeStyle = "rgba(255,255,255,0.2)";
-        ctx.beginPath(); ctx.moveTo(0, canvas.height/2); ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
+        ctx.strokeRect(0, canvas.height/2, canvas.width, 1);
 
-        // Экономика
-        gold += (1.5 + minesCount * 2) / 60;
-        document.getElementById('gold-txt').innerText = Math.floor(gold);
+        gold += (1.5 + mines * 2) / 60;
+        document.getElementById('gold').innerText = Math.floor(gold);
 
-        // Рисуем здания
         state.buildings.forEach(b => {
-            ctx.fillStyle = b.role === playerRole ? "#4444ff" : "#ff4444";
-            const s = b.type === 'mine' ? 30 : 45;
-            ctx.fillRect(b.x - s/2, b.y - s/2, s, s);
-
-            // Авто-спавн воинов
-            if (b.type === 'barracks' && Date.now() - b.lastSpawn > 4000) {
-                state.units.push({ x: b.x, y: b.y, role: b.role, speed: b.role === playerRole ? -2 : 2 });
-                b.lastSpawn = Date.now();
+            ctx.fillStyle = b.role === role ? "#44f" : "#f44";
+            ctx.fillRect(b.x-20, b.y-20, 40, 40);
+            if (b.type === 'barracks' && Date.now() - b.last > 4000) {
+                state.units.push({ x: b.x, y: b.y, role: b.role, s: b.role === role ? -2 : 2 });
+                b.last = Date.now();
             }
         });
 
-        // Рисуем воинов
         state.units.forEach((u, i) => {
-            u.y += u.speed;
-            ctx.fillStyle = u.role === playerRole ? "#00ffff" : "#ffaa00";
-            ctx.beginPath(); ctx.arc(u.x, u.y, 8, 0, Math.PI*2); ctx.fill();
-
-            // Проверка урона базе
+            u.y += u.s;
+            ctx.fillStyle = u.role === role ? "#0ff" : "#fa0";
+            ctx.beginPath(); ctx.arc(u.x, u.y, 7, 0, Math.PI*2); ctx.fill();
             if (u.y < 0 || u.y > canvas.height) {
-                if (u.role === playerRole) {
-                    enemyHp -= 50;
-                    document.getElementById('hp-txt').innerText = enemyHp;
+                if (u.role === role) {
+                    hp -= 50;
+                    document.getElementById('hp').innerText = hp;
                 }
                 state.units.splice(i, 1);
-                if (enemyHp <= 0) { alert("ПОБЕДА!"); location.reload(); }
+                if (hp <= 0) { alert("КОНЕЦ ИГРЫ"); location.reload(); }
             }
         });
-
-        requestAnimationFrame(update);
+        requestAnimationFrame(loop);
     }
-
-    window.onresize = resize;
 </script>
 </body>
 </html>

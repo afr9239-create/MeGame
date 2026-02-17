@@ -4,345 +4,600 @@
     <title>War Castle: Walls Tactical Update</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; }
-        #game-container { width: 100vw; height: 100vh; overflow-y: auto; overflow-x: hidden; position: relative; scrollbar-width: none; }
-        #game-container::-webkit-scrollbar { display: none; }
-        canvas { display: block; background: #355e3b; }
-
-        #ui { position: fixed; bottom: 10px; left: 0; width: 100%; display: flex; justify-content: center; gap: 6px; z-index: 10; }
-        .shop-item { 
-            background: rgba(30, 30, 30, 0.95); border: 2px solid #4444ff; 
-            width: 55px; height: 65px; text-align: center; border-radius: 8px;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: 0.2s;
+        body { 
+            margin: 0; 
+            background: #1a1a1a; 
+            color: white; 
+            font-family: sans-serif; 
+            overflow: hidden; 
+            touch-action: pan-y; /* Разрешаем вертикальную прокрутку */
         }
-        .shop-item.active { border-color: #ff00ff; background: rgba(80, 0, 80, 0.8); transform: scale(1.1); }
-        .item-icon { font-size: 20px; }
-        .item-cost { color: #ffd700; font-weight: bold; font-size: 10px; margin-top: 2px; }
+        #game-container { 
+            width: 100vw; 
+            height: 100vh; 
+            overflow-y: auto; 
+            overflow-x: hidden; 
+            position: relative; 
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch; /* Плавная прокрутка на iOS */
+        }
+        #game-container::-webkit-scrollbar { display: none; }
+        
+        canvas { 
+            display: block; 
+            width: 100%;
+            height: auto;
+            background: #355e3b; 
+            touch-action: pan-y; /* Разрешаем прокрутку на canvas */
+        }
+
+        #ui { 
+            position: fixed; 
+            bottom: 10px; 
+            left: 0; 
+            width: 100%; 
+            display: flex; 
+            justify-content: center; 
+            gap: 6px; 
+            z-index: 10; 
+            flex-wrap: wrap; /* Кнопки могут переноситься */
+            padding: 0 5px;
+            box-sizing: border-box;
+            pointer-events: none; /* Позволяет кликать сквозь пустые места */
+        }
+        .shop-item { 
+            background: rgba(30, 30, 30, 0.95); 
+            border: 2px solid #4444ff; 
+            width: 55px; 
+            height: 65px; 
+            text-align: center; 
+            border-radius: 8px;
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
+            transition: 0.2s;
+            pointer-events: auto; /* Кнопки можно нажимать */
+            cursor: pointer;
+            user-select: none;
+        }
+        .shop-item.active { 
+            border-color: #ff00ff; 
+            background: rgba(80, 0, 80, 0.8); 
+            transform: scale(1.1); 
+        }
+        .item-icon { font-size: 24px; }
+        .item-cost { color: #ffd700; font-weight: bold; font-size: 11px; margin-top: 2px; }
 
         .stats { 
-            position: fixed; top: 5px; width: 100%; display: flex; justify-content: space-between; 
-            padding: 0 10px; box-sizing: border-box; z-index: 10; pointer-events: none;
+            position: fixed; 
+            top: 10px; 
+            width: 100%; 
+            display: flex; 
+            justify-content: space-between; 
+            padding: 0 10px; 
+            box-sizing: border-box; 
+            z-index: 10; 
+            pointer-events: none;
         }
-        .stat-card { background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 8px; font-size: 11px; border-left: 4px solid #4444ff; backdrop-filter: blur(4px); }
-        .red-side { border-left: 0; border-right: 4px solid #ff4444; text-align: right; }
+        .stat-card { 
+            background: rgba(0,0,0,0.8); 
+            padding: 8px 15px; 
+            border-radius: 10px; 
+            font-size: 14px; 
+            border-left: 4px solid #4444ff; 
+            backdrop-filter: blur(4px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .red-side { 
+            border-left: 0; 
+            border-right: 4px solid #ff4444; 
+            text-align: right; 
+        }
 
-        #drag-icon { position: fixed; width: 35px; height: 35px; background: rgba(0,0,255,0.3); border: 2px solid #fff; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; font-size: 20px; text-align: center; line-height: 35px; }
-        #drag-icon.wall-drag { width: 80px; height: 15px; }
+        #drag-icon { 
+            position: fixed; 
+            width: 40px; 
+            height: 40px; 
+            background: rgba(0,0,255,0.5); 
+            border: 2px solid #fff; 
+            border-radius: 5px;
+            display: none; 
+            pointer-events: none; 
+            transform: translate(-50%, -50%); 
+            z-index: 100; 
+            font-size: 24px; 
+            text-align: center; 
+            line-height: 40px; 
+            box-shadow: 0 0 10px rgba(0,0,255,0.5);
+        }
+        #drag-icon.wall-drag { 
+            width: 90px; 
+            height: 20px; 
+            line-height: 20px;
+            background: rgba(0,0,255,0.6);
+        }
+        
+        /* Инструкция по прокрутке */
+        .scroll-hint {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 16px;
+            z-index: 1000;
+            animation: fadeOut 3s forwards;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; }
+        }
     </style>
 </head>
 <body>
 
 <div class="stats">
     <div class="stat-card">
-        💰<span id="gold1">0</span> | 🏰 <span id="hp1">500</span><br>
+        💰<span id="gold1">100</span> | 🏰 <span id="hp1">500</span><br>
         💎 <span id="mines1">0</span>/3 | ⚔️ <span id="bld1">0</span>/25
     </div>
     <div class="stat-card red-side">
-        🏰 <span id="hp2">500</span> | 💰<span id="gold2">0</span><br>
-        25/<span id="bld2">0</span> :⚔️ | 3/<span id="mines2">0</span> :💎
+        🏰 <span id="hp2">500</span> | 💰<span id="gold2">100</span><br>
+        25/<span id="bld2">0</span> ⚔️ | 3/<span id="mines2">0</span> 💎
     </div>
 </div>
 
 <div id="ui">
-    <div class="shop-item" ontouchstart="startDrag('barracks', 50)">
-        <div class="item-icon">🏠</div><div class="item-cost">50</div>
+    <div class="shop-item" onclick="startDrag('barracks', 50)">
+        <div class="item-icon">🏠</div>
+        <div class="item-cost">50</div>
     </div>
-    <div class="shop-item" ontouchstart="startDrag('archers', 150)">
-        <div class="item-icon">🏹</div><div class="item-cost">150</div>
+    <div class="shop-item" onclick="startDrag('archers', 150)">
+        <div class="item-icon">🏹</div>
+        <div class="item-cost">150</div>
     </div>
-    <div class="shop-item" ontouchstart="startDrag('wall', 200)">
-        <div class="item-icon">🧱</div><div class="item-cost">200</div>
+    <div class="shop-item" onclick="startDrag('wall', 200)">
+        <div class="item-icon">🧱</div>
+        <div class="item-cost">200</div>
     </div>
-    <div class="shop-item" ontouchstart="startDrag('turret', 70)">
-        <div class="item-icon">🛡️</div><div class="item-cost">70</div>
+    <div class="shop-item" onclick="startDrag('turret', 70)">
+        <div class="item-icon">🛡️</div>
+        <div class="item-cost">70</div>
     </div>
-    <div class="shop-item" ontouchstart="startDrag('bomb', 200)">
-        <div class="item-icon">💣</div><div class="item-cost">200</div>
+    <div class="shop-item" onclick="startDrag('bomb', 200)">
+        <div class="item-icon">💣</div>
+        <div class="item-cost">200</div>
     </div>
-    <div class="shop-item" ontouchstart="startDrag('mine', 100)">
-        <div class="item-icon">💎</div><div class="item-cost" id="mine-cost-ui">100</div>
+    <div class="shop-item" onclick="startDrag('mine', 100)">
+        <div class="item-icon">💎</div>
+        <div class="item-cost" id="mine-cost-ui">100</div>
     </div>
-    <div class="shop-item" id="sell-btn" onclick="toggleSellMode()">
-        <div class="item-icon">💰✖️</div><div class="item-cost">Sell</div>
+    <div class="shop-item" onclick="toggleSellMode()" id="sell-btn">
+        <div class="item-icon">💰✖️</div>
+        <div class="item-cost">Sell</div>
     </div>
 </div>
 
 <div id="drag-icon"></div>
 
-<div id="game-container" onclick="handleCanvasClick(event)">
+<div id="game-container">
     <canvas id="gameCanvas"></canvas>
 </div>
 
 <script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-const dragIcon = document.getElementById("drag-icon");
-const container = document.getElementById("game-container");
+(function() {
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const dragIcon = document.getElementById("drag-icon");
+    const container = document.getElementById("game-container");
 
-let sellMode = false;
-let gameState = {
-    p1: { gold: 100, hp: 500, income: 3, mines: 0, bombs: 0, combatBuildings: 0, barracks: 0, archerHouses: 0, turrets: 0 }, 
-    p2: { gold: 100, hp: 500, income: 3, mines: 0, bombs: 0, combatBuildings: 0, barracks: 0, archerHouses: 0, turrets: 0 }, 
-    units: [], buildings: [], projectiles: [], vfx: []
-};
+    // Показываем подсказку
+    const hint = document.createElement('div');
+    hint.className = 'scroll-hint';
+    hint.textContent = '👆 Прокрутите вниз, чтобы увидеть поле битвы';
+    document.body.appendChild(hint);
+    setTimeout(() => hint.remove(), 3000);
 
-function toggleSellMode() {
-    sellMode = !sellMode;
-    document.getElementById('sell-btn').classList.toggle('active', sellMode);
-}
+    let sellMode = false;
+    let gameState = {
+        p1: { gold: 100, hp: 500, income: 3, mines: 0, bombs: 0, combatBuildings: 0, barracks: 0, archerHouses: 0, turrets: 0 }, 
+        p2: { gold: 100, hp: 500, income: 3, mines: 0, bombs: 0, combatBuildings: 0, barracks: 0, archerHouses: 0, turrets: 0 }, 
+        units: [], 
+        buildings: [], 
+        projectiles: [], 
+        vfx: []
+    };
 
-function handleCanvasClick(e) {
-    if (!sellMode) return;
-    const rect = canvas.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top + container.scrollTop;
-    const bIndex = gameState.buildings.findIndex(b => b.player === 1 && Math.abs(b.x + (b.type==='wall'?40:20) - clickX) < (b.type==='wall'?45:25) && Math.abs(b.y + (b.type==='wall'?7:20) - clickY) < 25);
-    if (bIndex !== -1) {
-        let b = gameState.buildings[bIndex];
-        let refund = b.type === 'mine' ? getMineCost(gameState.p1.mines - 1) / 2 : (b.type === 'bomb' ? 100 : (b.type === 'turret' ? 35 : (b.type === 'archers' ? 75 : 25)));
-        gameState.p1.gold += refund;
-        destroyBuilding(bIndex);
-    }
-}
-
-function destroyBuilding(index) {
-    let b = gameState.buildings[index];
-    let p = b.player === 1 ? gameState.p1 : gameState.p2;
-    if (b.type === 'mine') { p.income -= 4; p.mines--; }
-    else { 
-        if (b.type === 'bomb') p.bombs--; 
-        else if (b.type === 'barracks') p.barracks--;
-        else if (b.type === 'archers') p.archerHouses--;
-        else if (b.type !== 'wall') p.turrets--;
-        p.combatBuildings--; 
-    }
-    gameState.buildings.splice(index, 1);
-}
-
-const decorations = [];
-function initDecorations() {
-    for(let i=0; i<40; i++) decorations.push({ x: Math.random() * window.innerWidth, y: Math.random() * (window.innerHeight * 2.5), size: 2 + Math.random() * 5, type: Math.random() > 0.5 ? 'stone' : 'grass' });
-}
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight * 2.5; if(decorations.length === 0) initDecorations(); }
-window.addEventListener('resize', resize); resize();
-setTimeout(() => container.scrollTop = canvas.height, 200);
-
-function getMineCost(mines) { return 100 + (mines * 100); }
-
-let dragging = null;
-function startDrag(type, cost) {
-    sellMode = false; document.getElementById('sell-btn').classList.remove('active');
-    let actualCost = type === 'mine' ? getMineCost(gameState.p1.mines) : cost;
-    if (gameState.p1.gold >= actualCost) {
-        if (type === 'mine' && gameState.p1.mines >= 3) return;
-        if (type !== 'mine' && gameState.p1.combatBuildings >= 25) return;
-        dragging = { type, cost: actualCost };
-        dragIcon.style.display = "block";
-        if (type === 'wall') {
-            dragIcon.classList.add('wall-drag');
-            dragIcon.innerHTML = "";
-            dragIcon.style.background = "rgba(0, 0, 255, 0.5)";
-        } else {
-            dragIcon.classList.remove('wall-drag');
-            dragIcon.style.background = "rgba(0,0,255,0.3)";
-            dragIcon.innerHTML = type === 'barracks' ? "🏠" : (type === 'archers' ? "🏹" : (type === 'mine' ? "💎" : (type === 'bomb' ? "💣" : "🛡️")));
-        }
-    }
-}
-
-window.addEventListener('touchmove', (e) => {
-    if (!dragging) return;
-    dragIcon.style.left = e.touches[0].clientX + "px"; dragIcon.style.top = e.touches[0].clientY + "px";
-}, { passive: false });
-
-window.addEventListener('touchend', (e) => {
-    if (!dragging) return;
-    let touch = e.changedTouches[0], cY = touch.clientY + container.scrollTop, cX = touch.clientX;
-    let w = dragging.type === 'wall' ? 80 : 40;
-    let h = dragging.type === 'wall' ? 15 : 40;
-    let isOcc = gameState.buildings.some(b => {
-        let bw = b.type === 'wall' ? 80 : 40;
-        let bh = b.type === 'wall' ? 15 : 40;
-        return !(cX-w/2 + w < b.x || cX-w/2 > b.x + bw || cY-h/2 + h < b.y || cY-h/2 > b.y + bh);
-    });
-    if (cY > canvas.height / 2 && cY < canvas.height - 70 && !isOcc) {
-        gameState.p1.gold -= dragging.cost;
-        if (dragging.type === 'mine') { gameState.p1.income += 4; gameState.p1.mines++; }
-        else { 
-            if (dragging.type === 'bomb') gameState.p1.bombs++;
-            else if (dragging.type === 'barracks') gameState.p1.barracks++;
-            else if (dragging.type === 'archers') gameState.p1.archerHouses++;
-            else if (dragging.type !== 'wall') gameState.p1.turrets++;
-            gameState.p1.combatBuildings++; 
-        }
-        let hp = (dragging.type === 'wall') ? 900 : ((dragging.type === 'turret' || dragging.type === 'bomb') ? 550 : 350);
-        gameState.buildings.push({ type: dragging.type, player: 1, x: cX - w/2, y: cY - h/2, hp: hp, maxHp: hp, lastSpawn: 0, lastShot: 0 });
-    }
-    dragging = null; dragIcon.style.display = "none";
-});
-
-function runAI() {
-    let p2 = gameState.p2;
-    let threat = gameState.units.filter(u => u.player === 1 && u.y < canvas.height * 0.45).length;
-    let myWalls = gameState.buildings.filter(b => b.player === 2 && b.type === 'wall').length;
-    let defScore = p2.turrets + (p2.bombs * 2);
-
-    let type = null;
-    // ИИ ставит стену только если есть угроза (3+ юнита)
-    if (threat >= 3 && myWalls < 3 && p2.gold >= 200) type = 'wall';
-    else if (p2.mines < 3 && p2.gold >= getMineCost(p2.mines)) type = 'mine';
-    else if (threat > 0 && defScore < 6 && p2.gold >= 70) type = (p2.gold >= 200 && p2.bombs < 2) ? 'bomb' : 'turret';
-    else if (p2.combatBuildings < 25 && p2.gold >= 50) type = (p2.archerHouses < p2.barracks / 2) ? 'archers' : 'barracks';
-
-    if (type) {
-        let cost = (type === 'wall') ? 200 : (type === 'mine' ? getMineCost(p2.mines) : (type === 'bomb' ? 200 : (type === 'turret' ? 70 : (type === 'archers' ? 150 : 50))));
-        if (p2.gold >= cost) {
-            let x = 30 + Math.random() * (canvas.width - 100), y;
-            if (type === 'mine') y = 70 + Math.random() * 80;
-            else if (type === 'wall') y = 380 + Math.random() * 30; // ИИ ставит стены ПЕРЕД турелями (ниже по экрану)
-            else if (type === 'barracks' || type === 'archers') y = 160 + Math.random() * 100;
-            else y = 250 + Math.random() * 80; // Турели ИИ теперь ГЛУБЖЕ (выше по экрану)
-
-            let w = type === 'wall' ? 80 : 40;
-            if (!gameState.buildings.some(b => Math.abs(b.x - x) < 60 && Math.abs(b.y - y) < 45)) {
-                p2.gold -= cost;
-                if (type === 'mine') { p2.income += 4; p2.mines++; }
-                else { 
-                    if (type === 'bomb') p2.bombs++; else if (type === 'barracks') p2.barracks++; else if (type === 'archers') p2.archerHouses++; else if (type !== 'wall') p2.turrets++; 
-                    p2.combatBuildings++; 
-                }
-                let hp = (type === 'wall') ? 900 : ((type === 'turret' || type === 'bomb') ? 550 : 350);
-                gameState.buildings.push({ type, player: 2, x, y, hp: hp, maxHp: hp, lastSpawn: Date.now(), lastShot: 0 });
-            }
-        }
-    }
-}
-setInterval(runAI, 1200);
-
-function update() {
-    gameState.p1.gold += gameState.p1.income / 60; gameState.p2.gold += gameState.p2.income / 60;
-    document.getElementById("gold1").innerText = Math.floor(gameState.p1.gold);
-    document.getElementById("gold2").innerText = Math.floor(gameState.p2.gold);
-    document.getElementById("hp1").innerText = Math.floor(gameState.p1.hp);
-    document.getElementById("hp2").innerText = Math.floor(gameState.p2.hp);
-    document.getElementById("mines1").innerText = gameState.p1.mines;
-    document.getElementById("mines2").innerText = gameState.p2.mines;
-    document.getElementById("bld1").innerText = gameState.p1.combatBuildings;
-    document.getElementById("bld2").innerText = gameState.p2.combatBuildings;
-    let nMC = getMineCost(gameState.p1.mines); document.getElementById("mine-cost-ui").innerText = gameState.p1.mines >= 3 ? "MAX" : nMC;
-
-    gameState.vfx = gameState.vfx.filter(v => Date.now() - v.time < 500);
-
-    gameState.buildings.forEach((b, bi) => {
-        let spawnCD = b.type === 'archers' ? 5000 : 6000;
-        if ((b.type === 'barracks' || b.type === 'archers') && Date.now() - b.lastSpawn > spawnCD) {
-            let uType = b.type === 'archers' ? 'archer' : 'knight';
-            gameState.units.push({ player: b.player, type: uType, x: b.x + (b.type==='wall'?40:20), y: b.y + 20, hp: uType === 'archer' ? 50 : 100, maxHp: uType === 'archer' ? 50 : 100, speed: b.player === 1 ? -0.8 : 0.8, lastShot: 0 });
-            b.lastSpawn = Date.now();
-        }
-        let cd = b.type === 'bomb' ? 3800 : 1500;
-        if ((b.type === 'turret' || b.type === 'bomb') && Date.now() - b.lastShot > cd) {
-            let target = gameState.units.find(u => u.player !== b.player && Math.hypot(u.x - (b.x+20), u.y - (b.y+20)) < 260);
-            if (target) { gameState.projectiles.push({ x: b.x+20, y: b.y+20, target: target, type: b.type, player: b.player }); b.lastShot = Date.now(); }
-        }
-        if (b.hp <= 0) destroyBuilding(bi);
-    });
-
-    gameState.projectiles.forEach((p, pi) => {
-        let dx = p.target.x - p.x, dy = p.target.y - p.y, dist = Math.hypot(dx, dy);
-        if (dist < 8) {
-            if (p.type === 'bomb') {
-                gameState.vfx.push({ x: p.x, y: p.y, time: Date.now() });
-                gameState.units.forEach(u => { if (u.player !== p.player && Math.hypot(u.x - p.x, u.y - p.y) < 85) u.hp -= 70; });
-            } else if (p.type === 'arrow') { p.target.hp -= 25; }
-            else { p.target.hp -= 35; }
-            gameState.projectiles.splice(pi, 1);
-        } else { p.x += dx / dist * 7; p.y += dy / dist * 7; }
-    });
-
-    gameState.units.forEach((u, i) => {
-        let viewDist = 160, attackDist = u.type === 'archer' ? 140 : 35;
-        let closestTarget = null, minDist = viewDist;
-        gameState.buildings.forEach(eb => { 
-            if (eb.player !== u.player) { 
-                let bw = eb.type === 'wall' ? 80 : 40;
-                let bh = eb.type === 'wall' ? 15 : 40;
-                let d = Math.hypot(eb.x + bw/2 - u.x, eb.y + bh/2 - u.y); 
-                if (d < minDist) { minDist = d; closestTarget = eb; closestTarget.isBuilding = true; } 
-            } 
+    // Инициализация с тестовыми зданиями для наглядности
+    function initTestBuildings() {
+        // Добавляем несколько зданий для синего игрока (игрок)
+        gameState.buildings.push({ 
+            type: 'barracks', 
+            player: 1, 
+            x: 100, 
+            y: 400, 
+            hp: 350, 
+            maxHp: 350, 
+            lastSpawn: Date.now(), 
+            lastShot: 0 
         });
-        gameState.units.forEach(eu => { if (eu.player !== u.player) { let d = Math.hypot(eu.x - u.x, eu.y - u.y); if (d < minDist) { minDist = d; closestTarget = eu; closestTarget.isBuilding = false; } } });
+        gameState.buildings.push({ 
+            type: 'turret', 
+            player: 1, 
+            x: 200, 
+            y: 300, 
+            hp: 550, 
+            maxHp: 550, 
+            lastSpawn: 0, 
+            lastShot: 0 
+        });
         
-        if (closestTarget) {
-            if (minDist < attackDist) {
-                if (u.type === 'archer') {
-                    if (Date.now() - u.lastShot > 1500) {
-                        gameState.projectiles.push({ x: u.x, y: u.y, target: closestTarget, type: 'arrow', player: u.player });
-                        u.lastShot = Date.now();
-                    }
-                } else { closestTarget.hp -= 1.3; }
-            } 
-            else { 
-                let bw = (closestTarget.isBuilding && closestTarget.type === 'wall') ? 80 : 40;
-                let bh = (closestTarget.isBuilding && closestTarget.type === 'wall') ? 15 : 40;
-                let dx = (closestTarget.isBuilding ? closestTarget.x + bw/2 : closestTarget.x) - u.x, dy = (closestTarget.isBuilding ? closestTarget.y + bh/2 : closestTarget.y) - u.y; 
-                let angle = Math.atan2(dy, dx); u.x += Math.cos(angle) * 0.9; u.y += Math.sin(angle) * 0.9; 
-            }
-        } else { u.y += u.speed; }
-        if (u.y < 50 && u.player === 1) { gameState.p2.hp -= 50; u.hp = 0; }
-        if (u.y > canvas.height - 50 && u.player === 2) { gameState.p1.hp -= 50; u.hp = 0; }
-        if (u.hp <= 0) gameState.units.splice(i, 1);
-    });
-    draw(); requestAnimationFrame(update);
-}
+        // Добавляем несколько зданий для красного игрока (ИИ)
+        gameState.buildings.push({ 
+            type: 'barracks', 
+            player: 2, 
+            x: 500, 
+            y: 800, 
+            hp: 350, 
+            maxHp: 350, 
+            lastSpawn: Date.now(), 
+            lastShot: 0 
+        });
+        gameState.buildings.push({ 
+            type: 'wall', 
+            player: 2, 
+            x: 450, 
+            y: 700, 
+            hp: 900, 
+            maxHp: 900, 
+            lastSpawn: 0, 
+            lastShot: 0 
+        });
+        
+        // Добавляем тестовых юнитов
+        gameState.units.push({ 
+            player: 1, 
+            type: 'knight', 
+            x: 300, 
+            y: 500, 
+            hp: 100, 
+            maxHp: 100, 
+            speed: -0.8, 
+            lastShot: 0 
+        });
+        gameState.units.push({ 
+            player: 2, 
+            type: 'archer', 
+            x: 600, 
+            y: 600, 
+            hp: 50, 
+            maxHp: 50, 
+            speed: 0.8, 
+            lastShot: 0 
+        });
+    }
 
-function drawBuilding(b) {
-    let color = b.player === 1 ? "#3b44cc" : "#cc3b3b";
-    ctx.strokeStyle = "white"; ctx.lineWidth = 2;
-    if (b.type === 'barracks' || b.type === 'archers') { 
-        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(b.x, b.y+40); ctx.lineTo(b.x, b.y+15); ctx.lineTo(b.x+20, b.y); ctx.lineTo(b.x+40, b.y+15); ctx.lineTo(b.x+40, b.y+40); ctx.closePath(); ctx.fill(); ctx.stroke(); 
-        ctx.fillStyle = "white"; ctx.font = "bold 9px Arial"; ctx.fillText(b.type === 'archers' ? "ARCH" : "KNIGHT", b.x+5, b.y+30);
+    function toggleSellMode() {
+        sellMode = !sellMode;
+        document.getElementById('sell-btn').classList.toggle('active', sellMode);
     }
-    else if (b.type === 'wall') {
-        ctx.fillStyle = b.player === 1 ? "#2a2aff" : "#ff2a2a";
-        ctx.fillRect(b.x, b.y, 80, 15); ctx.strokeRect(b.x, b.y, 80, 15);
-        ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 1;
-        for(let j=1; j<8; j++) { ctx.beginPath(); ctx.moveTo(b.x+j*10, b.y); ctx.lineTo(b.x+j*10, b.y+15); ctx.stroke(); }
-        ctx.lineWidth = 2;
+
+    function destroyBuilding(index) {
+        let b = gameState.buildings[index];
+        if (!b) return;
+        let p = b.player === 1 ? gameState.p1 : gameState.p2;
+        if (b.type === 'mine') { 
+            p.income -= 4; 
+            p.mines--; 
+        } else { 
+            if (b.type === 'bomb') p.bombs--; 
+            else if (b.type === 'barracks') p.barracks--;
+            else if (b.type === 'archers') p.archerHouses--;
+            else if (b.type !== 'wall') p.turrets--;
+            p.combatBuildings--; 
+        }
+        gameState.buildings.splice(index, 1);
     }
-    else if (b.type === 'turret') { ctx.fillStyle = "#555"; ctx.fillRect(b.x+5, b.y+25, 30, 15); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(b.x+20, b.y+15, 15, 0, Math.PI*2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "black"; ctx.fillRect(b.x+17, b.y-5, 6, 12); }
-    else if (b.type === 'bomb') { ctx.fillStyle = "#333"; ctx.fillRect(b.x, b.y+20, 40, 20); ctx.fillStyle = color; ctx.fillRect(b.x+5, b.y+5, 30, 20); ctx.strokeRect(b.x+5, b.y+5, 30, 20); ctx.fillStyle = "#111"; ctx.fillRect(b.x+15, b.y-10, 10, 20); }
-    else if (b.type === 'mine') { ctx.fillStyle = "#ffd700"; ctx.beginPath(); ctx.moveTo(b.x+20, b.y); ctx.lineTo(b.x+40, b.y+20); ctx.lineTo(b.x+20, b.y+40); ctx.lineTo(b.x, b.y+20); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+
+    const decorations = [];
+    function initDecorations() {
+        for(let i = 0; i < 60; i++) {
+            decorations.push({ 
+                x: Math.random() * 800, 
+                y: Math.random() * 2000, 
+                size: 2 + Math.random() * 8, 
+                type: Math.random() > 0.5 ? 'stone' : 'grass' 
+            });
+        }
+    }
+
+    function resize() { 
+        canvas.width = window.innerWidth; 
+        canvas.height = 2000; // Фиксированная высота для удобства
+        
+        if(decorations.length === 0) initDecorations(); 
+    }
     
-    let bw = b.type === 'wall' ? 80 : 40;
-    ctx.fillStyle = b.player === 1 ? "#000044" : "#440000"; ctx.fillRect(b.x, b.y - 12, bw, 6);
-    ctx.fillStyle = b.player === 1 ? "#5555ff" : "#ff5555"; ctx.fillRect(b.x, b.y - 12, (b.hp / b.maxHp) * bw, 6);
-}
+    window.addEventListener('resize', resize); 
+    resize();
+    
+    // Прокручиваем немного, чтобы было видно поле
+    setTimeout(() => {
+        container.scrollTop = 400;
+    }, 500);
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#355e3b"; ctx.fillRect(0,0, canvas.width, canvas.height);
-    decorations.forEach(d => { ctx.fillStyle = d.type === 'stone' ? "#777" : "#2d4d31"; if(d.type === 'stone') ctx.fillRect(d.x, d.y, d.size, d.size); else { ctx.beginPath(); ctx.arc(d.x, d.y, d.size, 0, Math.PI*2); ctx.fill(); } });
-    ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fillRect(0, canvas.height/2 - 20, canvas.width, 40);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"; ctx.setLineDash([30, 20]); ctx.beginPath(); ctx.moveTo(0, canvas.height / 2); ctx.lineTo(canvas.width, canvas.height / 2); ctx.stroke(); ctx.setLineDash([]); 
-    ctx.fillStyle = "#ff4444"; ctx.fillRect(0, 0, canvas.width, 60); ctx.fillStyle = "#4444ff"; ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
-    gameState.buildings.forEach(drawBuilding);
-    gameState.units.forEach(u => { 
-        ctx.fillStyle = u.player === 1 ? "#4444ff" : "#ff4444"; 
-        if (u.type === 'archer') {
-            ctx.beginPath();
-            if (u.player === 1) { ctx.moveTo(u.x, u.y-14); ctx.lineTo(u.x+12, u.y+10); ctx.lineTo(u.x-12, u.y+10); }
-            else { ctx.moveTo(u.x, u.y+14); ctx.lineTo(u.x+12, u.y-10); ctx.lineTo(u.x-12, u.y-10); }
-            ctx.closePath(); ctx.fill();
-        } else { ctx.beginPath(); ctx.arc(u.x, u.y, 14, 0, Math.PI * 2); ctx.fill(); }
-        ctx.strokeStyle = "white"; ctx.stroke(); 
-        ctx.fillStyle = u.player === 1 ? "#000044" : "#440000"; ctx.fillRect(u.x-15, u.y-25, 30, 6); ctx.fillStyle = u.player === 1 ? "#5555ff" : "#ff5555"; ctx.fillRect(u.x-15, u.y-25, (u.hp / u.maxHp) * 30, 6); 
+    function getMineCost(mines) { return 100 + (mines * 100); }
+
+    let dragging = null;
+    function startDrag(type, cost) {
+        sellMode = false; 
+        document.getElementById('sell-btn').classList.remove('active');
+        let actualCost = type === 'mine' ? getMineCost(gameState.p1.mines) : cost;
+        
+        if (gameState.p1.gold >= actualCost) {
+            if (type === 'mine' && gameState.p1.mines >= 3) {
+                alert('Максимум 3 шахты!');
+                return;
+            }
+            if (type !== 'mine' && gameState.p1.combatBuildings >= 25) {
+                alert('Достигнут лимит зданий!');
+                return;
+            }
+            
+            dragging = { type, cost: actualCost };
+            dragIcon.style.display = "block";
+            
+            if (type === 'wall') {
+                dragIcon.classList.add('wall-drag');
+                dragIcon.innerHTML = "🧱";
+                dragIcon.style.background = "rgba(0, 100, 200, 0.7)";
+            } else {
+                dragIcon.classList.remove('wall-drag');
+                dragIcon.style.background = "rgba(0,0,255,0.5)";
+                const icons = {
+                    'barracks': '🏠',
+                    'archers': '🏹',
+                    'mine': '💎',
+                    'bomb': '💣',
+                    'turret': '🛡️'
+                };
+                dragIcon.innerHTML = icons[type] || '🏗️';
+            }
+        } else {
+            alert('Недостаточно золота!');
+        }
+    }
+
+    // Обработка касаний для перетаскивания
+    container.addEventListener('touchstart', (e) => {
+        if (!dragging) return;
+        e.preventDefault();
     });
-    gameState.projectiles.forEach(p => { ctx.fillStyle = p.type === 'bomb' ? "#ff0" : (p.type === 'arrow' ? "#fff" : "#fa0"); ctx.beginPath(); ctx.arc(p.x, p.y, p.type === 'bomb' ? 9 : (p.type === 'arrow' ? 3 : 5), 0, Math.PI * 2); ctx.fill(); });
-    gameState.vfx.forEach(v => { ctx.strokeStyle = "rgba(255, 100, 0, 0.6)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(v.x, v.y, 85, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = "rgba(255, 100, 0, 0.2)"; ctx.fill(); });
-}
-update();
-</script>
-</body>
-</html>
+
+    container.addEventListener('touchmove', (e) => {
+        if (!dragging) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        dragIcon.style.left = touch.clientX + "px"; 
+        dragIcon.style.top = touch.clientY + "px";
+    });
+
+    container.addEventListener('touchend', (e) => {
+        if (!dragging) return;
+        e.preventDefault();
+        
+        const touch = e.changedTouches[0];
+        const cY = touch.clientY + container.scrollTop;
+        const cX = touch.clientX;
+        
+        const w = dragging.type === 'wall' ? 80 : 40;
+        const h = dragging.type === 'wall' ? 15 : 40;
+        
+        // Проверка на занятость места
+        const isOcc = gameState.buildings.some(b => {
+            const bw = b.type === 'wall' ? 80 : 40;
+            const bh = b.type === 'wall' ? 15 : 40;
+            const bX = b.x;
+            const bY = b.y;
+            const newX = cX - w/2;
+            const newY = cY - h/2;
+            
+            return !(newX + w < bX || newX > bX + bw || newY + h < bY || newY > bY + bh);
+        });
+        
+        // Проверка, что строительство в зоне синего игрока (нижняя половина)
+        if (cY > canvas.height / 2 && cY < canvas.height - 50 && !isOcc) {
+            gameState.p1.gold -= dragging.cost;
+            
+            if (dragging.type === 'mine') { 
+                gameState.p1.income += 4; 
+                gameState.p1.mines++; 
+            } else { 
+                if (dragging.type === 'bomb') gameState.p1.bombs++;
+                else if (dragging.type === 'barracks') gameState.p1.barracks++;
+                else if (dragging.type === 'archers') gameState.p1.archerHouses++;
+                else if (dragging.type !== 'wall') gameState.p1.turrets++;
+                gameState.p1.combatBuildings++; 
+            }
+            
+            let hp = (dragging.type === 'wall') ? 900 : 
+                    ((dragging.type === 'turret' || dragging.type === 'bomb') ? 550 : 350);
+            
+            gameState.buildings.push({ 
+                type: dragging.type, 
+                player: 1, 
+                x: cX - w/2, 
+                y: cY - h/2, 
+                hp: hp, 
+                maxHp: hp, 
+                lastSpawn: Date.now(), 
+                lastShot: 0 
+            });
+        }
+        
+        dragging = null; 
+        dragIcon.style.display = "none";
+    });
+
+    // Улучшенный ИИ красного игрока
+    function runAI() {
+        let p2 = gameState.p2;
+        
+        // Сбор данных
+        let enemyUnits = gameState.units.filter(u => u.player === 1).length;
+        let enemyUnitsNearBase = gameState.units.filter(u => u.player === 1 && u.y > canvas.height * 0.6).length;
+        
+        let myWalls = gameState.buildings.filter(b => b.player === 2 && b.type === 'wall').length;
+        let myTurrets = gameState.buildings.filter(b => b.player === 2 && b.type === 'turret').length;
+        let myBombs = gameState.buildings.filter(b => b.player === 2 && b.type === 'bomb').length;
+        let myBarracks = gameState.buildings.filter(b => b.player === 2 && b.type === 'barracks').length;
+        let myArchers = gameState.buildings.filter(b => b.player === 2 && b.type === 'archers').length;
+        
+        let gold = p2.gold;
+        
+        // Приоритет: шахты
+        if (p2.mines < 3 && gold >= getMineCost(p2.mines)) {
+            tryPlaceBuilding('mine');
+            return;
+        }
+        
+        // Если много золота
+        if (gold > 400) {
+            if (myBombs < 2 && gold >= 200) {
+                tryPlaceBuilding('bomb');
+                return;
+            }
+            if (myWalls < 3 && gold >= 200) {
+                tryPlaceBuilding('wall');
+                return;
+            }
+            if (myTurrets < 6 && gold >= 70) {
+                tryPlaceBuilding('turret');
+                return;
+            }
+        }
+        
+        // Если есть угроза
+        if (enemyUnitsNearBase > 0) {
+            if (enemyUnitsNearBase > 2 && myWalls < 2 && gold >= 200) {
+                tryPlaceBuilding('wall');
+                return;
+            }
+            if (myTurrets < 4 && gold >= 70) {
+                tryPlaceBuilding('turret');
+                return;
+            }
+            if (myBombs < 1 && gold >= 200) {
+                tryPlaceBuilding('bomb');
+                return;
+            }
+        }
+        
+        // Развитие армии
+        if (p2.combatBuildings < 20 && gold >= 50) {
+            if (myBarracks < 3 || gold > 300) {
+                tryPlaceBuilding('barracks');
+            } else if (myArchers < 2) {
+                tryPlaceBuilding('archers');
+            }
+            return;
+        }
+        
+        function tryPlaceBuilding(type) {
+            let cost = 0;
+            let yPos = 0;
+            let xPos = canvas.width / 2 + (Math.random() - 0.5) * 200;
+            
+            switch(type) {
+                case 'wall':
+                    cost = 200;
+                    yPos = 700 + Math.random() * 50;
+                    break;
+                case 'mine':
+                    cost = getMineCost(p2.mines);
+                    yPos = 500 + Math.random() * 100;
+                    break;
+                case 'bomb':
+                    cost = 200;
+                    yPos = 600 + Math.random() * 100;
+                    break;
+                case 'turret':
+                    cost = 70;
+                    yPos = 550 + Math.random() * 150;
+                    break;
+                case 'barracks':
+                    cost = 50;
+                    yPos = 450 + Math.random() * 100;
+                    break;
+                case 'archers':
+                    cost = 150;
+                    yPos = 500 + Math.random() * 100;
+                    break;
+            }
+            
+            // Ограничиваем по краям
+            xPos = Math.max(50, Math.min(canvas.width - 90, xPos));
+            
+            if (p2.gold >= cost) {
+                let w = type === 'wall' ? 80 : 40;
+                
+                // Проверка на занятость
+                if (!gameState.buildings.some(b => 
+                    Math.abs(b.x - xPos) < 70 && Math.abs(b.y - yPos) < 50)) {
+                    
+                    p2.gold -= cost;
+                    
+                    if (type === 'mine') { 
+                        p2.income += 4; 
+                        p2.mines++; 
+                    } else { 
+                        if (type === 'bomb') p2.bombs++; 
+                        else if (type === 'barracks') p2.barracks++; 
+                        else if (type === 'archers') p2.archerHouses++; 
+                        else if (type !== 'wall') p2.turrets++; 
+                        p2.combatBuildings++; 
+                    }
+                    
+                    let hp = (type === 'wall') ? 900 : 
+                            ((type === 'turret' || type === 'bomb') ? 550 : 350);
+                    
+                    gameState.buildings.push({ 
+                        type, 
+                        player: 2, 
+                        x: xPos, 
+                        y: yPos, 
+                        hp: hp, 
+                        maxHp: hp, 
+                        lastSpawn: Date.now(), 
+                        lastShot: 0 
+                    });
+                }
+            }
+        }
+    }
+
+    // Запускаем ИИ
+    setInterval(runAI, 1000);
+
+    // Игровой цикл
+    function update() {
+        // Обновление золота
+        gameState.p1.gold += gameState.p1.income / 120; // Медленнее
+        gameState.p2.gold += gameState.p2.income / 120;
+        
+        // Обновление UI
+        document.getElementById("gold1").innerText = Math.floor(gameState.p1.gold);
+        document.getElementById("gold2").innerText = Math.floor(gameState.p2.gold);
+        document.getElementById("hp1").innerText = Math.floor(gameState.p1.hp);
+        document.getElementById("hp2").innerText = Math.floor(gameState.p2.hp);
+        document.getElementById("mines1").innerText = gameState.p1.mines;
+        document.getEle

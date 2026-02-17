@@ -1,157 +1,195 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
+    <meta charset="UTF-8">
     <title>War Castle Multiplayer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; }
-        #lobby { position: fixed; inset: 0; background: #222; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #game-container { width: 100vw; height: 100vh; display: none; position: relative; }
+        
+        /* Меню */
+        #lobby { position: fixed; inset: 0; background: #111; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #online-counter { color: #00ff00; margin: 15px; font-weight: bold; }
+        
+        /* Игра */
+        #game-container { display: none; width: 100vw; height: 100vh; position: relative; }
         canvas { display: block; background: #355e3b; }
-        
-        #status-text { font-size: 24px; margin-bottom: 10px; color: #4444ff; font-weight: bold; }
-        #online-counter { color: #00ff00; margin-bottom: 30px; font-family: monospace; }
-        
-        button { padding: 15px 40px; font-size: 20px; background: #4444ff; color: white; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 5px 0 #2222aa; }
-        button:active { transform: translateY(3px); box-shadow: 0 2px 0 #2222aa; }
-        button:disabled { background: #555; box-shadow: none; cursor: default; }
 
-        .ui-panel { position: fixed; bottom: 10px; width: 100%; display: flex; justify-content: center; gap: 8px; pointer-events: none; }
-        .shop-item { pointer-events: auto; background: rgba(0,0,0,0.8); border: 2px solid #4444ff; width: 60px; height: 70px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .stats { position: fixed; top: 10px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; font-size: 20px; font-weight: bold; pointer-events: none; }
+        
+        #ui { position: fixed; bottom: 15px; width: 100%; display: flex; justify-content: center; gap: 10px; }
+        .shop-item { background: rgba(0,0,0,0.8); border: 2px solid #4444ff; padding: 10px; border-radius: 10px; text-align: center; width: 70px; cursor: pointer; }
+        .shop-item.active { border-color: #00ff00; background: #333; }
+
+        button { padding: 15px 40px; font-size: 22px; background: #4444ff; color: white; border: none; border-radius: 12px; cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: default; }
     </style>
 </head>
 <body>
 
 <div id="lobby">
-    <div id="status-text">WAR CASTLE</div>
-    <div id="online-counter">Подключение к серверу...</div>
+    <h1 style="color: #4444ff; letter-spacing: 5px;">WAR CASTLE</h1>
+    <div id="online-counter">ПОДКЛЮЧЕНИЕ К МОЗГУ...</div>
     <button id="find-btn" onclick="requestMatch()">В БОЙ!</button>
 </div>
 
 <div id="game-container">
+    <div class="stats">
+        <div style="color: gold;">💰 <span id="gold-ui">100</span></div>
+        <div style="color: #ff4444;">❤ ВРАГ: <span id="hp-ui">1000</span></div>
+    </div>
+
     <canvas id="gameCanvas"></canvas>
-    <div class="ui-panel">
-        <div class="shop-item" ontouchstart="startDrag('barracks', 50)">🏠<br><small>50</small></div>
-        <div class="shop-item" ontouchstart="startDrag('archers', 150)">🏹<br><small>150</small></div>
-        <div class="shop-item" ontouchstart="startDrag('wall', 200)">🧱<br><small>200</small></div>
-        <div class="shop-item" ontouchstart="startDrag('turret', 70)">🛡️<br><small>70</small></div>
-        <div class="shop-item" ontouchstart="startDrag('mine', 100)">💎<br><small>100</small></div>
+
+    <div id="ui">
+        <div class="shop-item" id="btn-barracks" onclick="selectBuilding('barracks', 50)">🏠<br>50</div>
+        <div class="shop-item" id="btn-mine" onclick="selectBuilding('mine', 100)">💎<br>100</div>
     </div>
 </div>
 
 <script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-let socket;
-let playerRole = null;
-let currentRoom = null;
+    // ПОДКЛЮЧЕНИЕ К ТВОЕМУ СЕРВЕРУ
+    const socket = io("https://war-castle-v2.onrender.com");
+    
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    
+    let role = null;
+    let room = null;
+    let gold = 100;
+    let minesCount = 0;
+    let enemyBaseHp = 1000;
+    let selectedType = null;
+    let selectedCost = 0;
 
-// СРАЗУ ПОДКЛЮЧАЕМСЯ ПРИ ЗАГРУЗКЕ
-// ЗАМЕНИ НА СВОЙ URL:
-const SERVER_URL = "https://your-app-name.onrender.com"; 
-socket = io(SERVER_URL);
+    let state = { buildings: [], units: [] };
 
-socket.on('connect', () => {
-    console.log("Connected to server!");
-});
+    // --- СЕТЬ ---
+    socket.on('onlineUpdate', (count) => {
+        document.getElementById('online-counter').innerText = `ИГРОКОВ В СЕТИ: ${count}`;
+    });
 
-socket.on('onlineUpdate', (count) => {
-    document.getElementById('online-counter').innerText = `ИГРОКОВ В СЕТИ: ${count}`;
-});
+    socket.on('startGame', (data) => {
+        role = data.role;
+        room = data.room;
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('game-container').style.display = 'block';
+        resize();
+        requestAnimationFrame(gameLoop);
+    });
 
-socket.on('startGame', (data) => {
-    playerRole = data.role;
-    currentRoom = data.room;
-    document.getElementById('lobby').style.display = 'none';
-    document.getElementById('game-container').style.display = 'block';
-    setupCanvas();
-    update();
-});
+    socket.on('syncBuilding', (data) => {
+        // Зеркалим координаты для врага (инверсия X и Y)
+        const rx = canvas.width - data.x;
+        const ry = canvas.height - data.y;
+        addBuilding(data.type, data.role, rx, ry);
+    });
 
-socket.on('syncBuilding', (data) => {
-    // Зеркалим координаты врага
-    let rx = canvas.width - data.x - (data.type === 'wall' ? 80 : 40);
-    let ry = canvas.height - data.y - (data.type === 'wall' ? 15 : 40);
-    addBuilding(data.type, data.role, rx, ry);
-});
-
-function requestMatch() {
-    socket.emit('findGame');
-    document.getElementById('find-btn').disabled = true;
-    document.getElementById('status-text').innerText = "ПОИСК ПРОТИВНИКА...";
-}
-
-// --- ИГРОВАЯ ЛОГИКА (Упрощенная для теста) ---
-let gameState = { p1:{gold:100}, p2:{gold:100}, buildings:[], units:[] };
-
-function setupCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-
-let dragging = null;
-function startDrag(type, cost) {
-    dragging = { type, cost };
-}
-
-window.addEventListener('touchend', (e) => {
-    if (!dragging || !playerRole) return;
-    let touch = e.changedTouches[0];
-    let x = touch.clientX;
-    let y = touch.clientY;
-
-    if (y > canvas.height / 2 + 40) { // Можно строить только на своей стороне
-        addBuilding(dragging.type, playerRole, x, y);
-        socket.emit('placeBuilding', { type: dragging.type, x, y, role: playerRole, room: currentRoom });
+    function requestMatch() {
+        socket.emit('findGame');
+        document.getElementById('find-btn').disabled = true;
+        document.getElementById('find-btn').innerText = "ПОИСК ВРАГА...";
     }
-    dragging = null;
-});
 
-function addBuilding(type, player, x, y) {
-    gameState.buildings.push({ type, player, x, y, lastSpawn: Date.now() });
-}
+    // --- ЛОГИКА ИГРЫ ---
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
 
-function update() {
-    // Авто-спавн юнитов
-    gameState.buildings.forEach(b => {
-        if ((b.type === 'barracks') && Date.now() - b.lastSpawn > 4000) {
-            gameState.units.push({
-                player: b.player,
-                x: b.x,
-                y: b.y,
-                speed: b.player === playerRole ? -1 : 1
+    function selectBuilding(type, cost) {
+        selectedType = type;
+        selectedCost = cost;
+        document.querySelectorAll('.shop-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('btn-' + type).classList.add('active');
+    }
+
+    canvas.onclick = (e) => {
+        if (!selectedType || gold < selectedCost) return;
+        
+        // Можно строить только на своей нижней половине
+        if (e.clientY > canvas.height / 2 + 50) {
+            gold -= selectedCost;
+            addBuilding(selectedType, role, e.clientX, e.clientY);
+            
+            // Отправляем данные врагу
+            socket.emit('placeBuilding', {
+                type: selectedType,
+                x: e.clientX,
+                y: e.clientY,
+                role: role,
+                room: room
             });
-            b.lastSpawn = Date.now();
+
+            selectedType = null;
+            document.querySelectorAll('.shop-item').forEach(el => el.classList.remove('active'));
         }
-    });
+    };
 
-    gameState.units.forEach((u, i) => {
-        u.y += u.speed;
-    });
+    function addBuilding(type, bRole, x, y) {
+        state.buildings.push({
+            type,
+            role: bRole,
+            x,
+            y,
+            lastSpawn: Date.now()
+        });
+        if (type === 'mine' && bRole === role) minesCount++;
+    }
 
-    draw();
-    requestAnimationFrame(update);
-}
+    function gameLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Линия центра
-    ctx.strokeStyle = "white";
-    ctx.setLineDash([5, 15]);
-    ctx.beginPath(); ctx.moveTo(0, canvas.height/2); ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
-    ctx.setLineDash([]);
+        // Линия разделения
+        ctx.strokeStyle = "rgba(255,255,255,0.2)";
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath(); ctx.moveTo(0, canvas.height/2); ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
+        ctx.setLineDash([]);
 
-    gameState.buildings.forEach(b => {
-        ctx.fillStyle = b.player === playerRole ? "blue" : "red";
-        ctx.fillRect(b.x-20, b.y-20, 40, 40);
-    });
+        // Золото
+        gold += (1 + minesCount * 2) / 60;
+        document.getElementById('gold-ui').innerText = Math.floor(gold);
 
-    gameState.units.forEach(u => {
-        ctx.fillStyle = u.player === playerRole ? "cyan" : "orange";
-        ctx.beginPath(); ctx.arc(u.x, u.y, 8, 0, Math.PI*2); ctx.fill();
-    });
-}
+        // Здания
+        state.buildings.forEach(b => {
+            ctx.fillStyle = b.role === role ? "#4444ff" : "#ff4444";
+            const size = b.type === 'mine' ? 30 : 40;
+            ctx.fillRect(b.x - size/2, b.y - size/2, size, size);
+
+            // Спавн рыцарей из баз
+            if (b.type === 'barracks' && Date.now() - b.lastSpawn > 4000) {
+                state.units.push({
+                    x: b.x,
+                    y: b.y,
+                    role: b.role,
+                    speed: b.role === role ? -1.5 : 1.5
+                });
+                b.lastSpawn = Date.now();
+            }
+        });
+
+        // Юниты
+        state.units.forEach((u, i) => {
+            u.y += u.speed;
+            ctx.fillStyle = u.role === role ? "#00ffff" : "#ffaa00";
+            ctx.beginPath();
+            ctx.arc(u.x, u.y, 8, 0, Math.PI*2);
+            ctx.fill();
+
+            // Если юнит дошел до края - урон базе
+            if (u.y < 0 || u.y > canvas.height) {
+                if (u.role === role) enemyBaseHp -= 50;
+                state.units.splice(i, 1);
+                document.getElementById('hp-ui').innerText = enemyBaseHp;
+                if (enemyBaseHp <= 0) alert("КОНЕЦ ИГРЫ!");
+            }
+        });
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    window.onresize = resize;
 </script>
 </body>
 </html>

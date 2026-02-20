@@ -1,109 +1,77 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>War Castle: Arena PVP FULL VERSION</title>
+    <title>War Castle: Arena MULTIPLAYER</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; touch-action: none; }
+        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; }
         #game-container { width: 100vw; height: 100vh; overflow-y: auto; overflow-x: hidden; position: relative; scrollbar-width: none; display: none; }
         #game-container::-webkit-scrollbar { display: none; }
-        canvas { display: block; background: #355e3b; width: 100%; height: auto; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        canvas { display: block; background: #355e3b; width: 100%; height: auto; }
 
         /* МЕНЮ */
-        #menu-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #2c3e50 0%, #000 100%); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .menu-card { background: rgba(0,0,0,0.6); padding: 50px; border-radius: 30px; border: 2px solid #ff00ff; text-align: center; backdrop-filter: blur(10px); }
-        .btn-battle { background: linear-gradient(135deg, #ff00ff 0%, #800080 100%); border: none; color: white; padding: 20px 60px; font-size: 28px; font-weight: bold; border-radius: 50px; cursor: pointer; transition: 0.3s; box-shadow: 0 0 30px rgba(255,0,255,0.5); }
-        .btn-battle:hover { transform: scale(1.05); }
-        .searching-text { color: #00ffff; margin-top: 25px; display: none; font-size: 18px; animation: blink 1.5s infinite; }
-        @keyframes blink { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
-        
-        /* ИНТЕРФЕЙС ИГРЫ */
-        #ui { position: fixed; bottom: 15px; left: 0; width: 100%; display: none; justify-content: center; gap: 8px; z-index: 10; }
-        .shop-item { 
-            background: rgba(20, 20, 20, 0.9); border: 2px solid #4444ff; width: 60px; height: 75px; 
-            text-align: center; border-radius: 12px; font-size: 11px; display: flex; flex-direction: column; 
-            justify-content: center; align-items: center; transition: 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-        }
-        .shop-item:active { transform: translateY(-5px); border-color: #ff00ff; }
-        .item-icon { font-size: 24px; margin-bottom: 3px; }
+        #menu-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #2c3e50, #000); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .btn-battle { background: #ff00ff; border: none; color: white; padding: 15px 50px; font-size: 24px; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 0 20px #ff00ff; }
+        .searching-text { color: #00ffff; margin-top: 20px; display: none; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
 
-        .stats { position: fixed; top: 10px; width: 100%; display: none; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 10; pointer-events: none; }
-        .stat-card { background: rgba(0,0,0,0.8); padding: 10px 18px; border-radius: 12px; font-size: 13px; border-left: 5px solid #4444ff; backdrop-filter: blur(5px); }
-        .red-side { border-left: 0; border-right: 5px solid #ff4444; text-align: right; }
-        
-        #drag-icon { position: fixed; width: 45px; height: 45px; background: rgba(255,255,255,0.3); border: 3px solid #fff; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; text-align: center; line-height: 45px; font-size: 28px; border-radius: 10px; }
+        /* ИНТЕРФЕЙС */
+        #ui { position: fixed; bottom: 10px; left: 0; width: 100%; display: none; justify-content: center; gap: 6px; z-index: 10; }
+        .shop-item { background: rgba(30, 30, 30, 0.95); border: 2px solid #4444ff; width: 55px; height: 65px; text-align: center; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 10px; }
+        .shop-item.active { border-color: #ff00ff; background: rgba(80, 0, 80, 0.8); }
+        .stats { position: fixed; top: 5px; width: 100%; display: none; justify-content: space-between; padding: 0 10px; box-sizing: border-box; z-index: 10; pointer-events: none; }
+        .stat-card { background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 8px; font-size: 11px; border-left: 4px solid #4444ff; }
+        .red-side { border-left: 0; border-right: 4px solid #ff4444; text-align: right; }
+        #drag-icon { position: fixed; width: 35px; height: 35px; background: rgba(255,255,255,0.3); border: 2px solid #fff; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; text-align: center; line-height: 35px; border-radius: 50%; font-size: 20px; }
+        #drag-icon.wall-drag { width: 80px; height: 15px; border-radius: 0; }
     </style>
 </head>
 <body>
 
 <div id="menu-screen">
-    <div class="menu-card">
-        <h1 style="font-size: 48px; margin: 0; letter-spacing: 5px; text-shadow: 0 0 20px #ff00ff;">WAR CASTLE</h1>
-        <p style="color: #aaa; margin-bottom: 40px;">MULTIPLAYER ARENA</p>
-        <button class="btn-battle" onclick="findMatch()">В БОЙ</button>
-        <div id="search-status" class="searching-text">ИЩЕМ СОПЕРНИКА ДЛЯ БИТВЫ...</div>
-        <p id="online-count" style="margin-top: 20px; color: #555;">Сервер: подключаемся...</p>
-    </div>
+    <h1>WAR CASTLE</h1>
+    <button class="btn-battle" onclick="findMatch()">В БОЙ</button>
+    <div id="search-status" class="searching-text">ПОИСК СОПЕРНИКА...</div>
+    <p id="online-count" style="color: #444;">Игроков: 0</p>
 </div>
 
 <div class="stats" id="stats-ui">
-    <div class="stat-card">
-        💰 <span id="gold1">0</span><br>
-        🏰 <span id="hp1">500</span> | 💎 <span id="mines1">0</span>/3
-    </div>
-    <div class="stat-card red-side">
-        💰 <span id="gold2">0</span><br>
-        <span id="mines2">0</span>/3 | 🏰 <span id="hp2">500</span>
-    </div>
+    <div class="stat-card">💰<span id="gold1">0</span> | 🏰 <span id="hp1">500</span><br>💎 <span id="mines1">0</span>/3</div>
+    <div class="stat-card red-side">🏰 <span id="hp2">500</span> | 💰<span id="gold2">0</span><br>3/<span id="mines2">0</span> :💎</div>
 </div>
 
 <div id="ui">
-    <div class="shop-item" ontouchstart="startDrag('barracks', 50)"><div class="item-icon">🏠</div>50</div>
-    <div class="shop-item" ontouchstart="startDrag('archers', 150)"><div class="item-icon">🏹</div>150</div>
-    <div class="shop-item" ontouchstart="startDrag('wall', 200)"><div class="item-icon">🧱</div>200</div>
-    <div class="shop-item" ontouchstart="startDrag('turret', 70)"><div class="item-icon">🛡️</div>70</div>
-    <div class="shop-item" ontouchstart="startDrag('bomb', 200)"><div class="item-icon">💣</div>200</div>
-    <div class="shop-item" ontouchstart="startDrag('mine', 100)"><div class="item-icon">💎</div><span id="mine-cost-ui">100</span></div>
+    <div class="shop-item" ontouchstart="startDrag('barracks', 50)">🏠 50</div>
+    <div class="shop-item" ontouchstart="startDrag('archers', 150)">🏹 150</div>
+    <div class="shop-item" ontouchstart="startDrag('wall', 200)">🧱 200</div>
+    <div class="shop-item" ontouchstart="startDrag('turret', 70)">🛡️ 70</div>
+    <div class="shop-item" ontouchstart="startDrag('bomb', 200)">💣 200</div>
+    <div class="shop-item" ontouchstart="startDrag('mine', 100)">💎 <span id="mine-cost-ui">100</span></div>
+    <div class="shop-item" id="sell-btn" onclick="toggleSellMode()">✖️ Sell</div>
 </div>
 
 <div id="drag-icon"></div>
-
-<div id="game-container">
-    <canvas id="gameCanvas"></canvas>
-</div>
+<div id="game-container"><canvas id="gameCanvas"></canvas></div>
 
 <script>
 const socket = io("https://war-castle.onrender.com");
-let gameStarted = false;
-let isSearching = false;
-const ATTACK_RANGE = 320;
-const decorations = [];
-
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-const container = document.getElementById("game-container");
-const dragIcon = document.getElementById("drag-icon");
+let gameStarted = false, isSearching = false, sellMode = false;
+const canvas = document.getElementById("gameCanvas"), ctx = canvas.getContext("2d");
+const dragIcon = document.getElementById("drag-icon"), container = document.getElementById("game-container");
 
 let gameState = {
     p1: { gold: 120, hp: 500, income: 3, mines: 0 }, 
     p2: { gold: 120, hp: 500, income: 3, mines: 0 }, 
     units: [], buildings: [], projectiles: [], vfx: []
 };
+const ATTACK_RANGE = 320;
+const decorations = [];
 
-// --- СЕТЕВАЯ ЧАСТЬ ---
-socket.on('playerUpdate', (count) => {
-    document.getElementById('online-count').innerText = `ИГРОКОВ В СЕТИ: ${count}`;
-});
-
-function findMatch() {
-    if (isSearching) return;
-    isSearching = true;
-    document.getElementById('search-status').style.display = 'block';
-    socket.emit('findMatch'); 
-}
-
-socket.on('matchFound', () => {
+// --- СЕТЕВАЯ ЛОГИКА ---
+socket.on('playerUpdate', (count) => { document.getElementById('online-count').innerText = `Игроков: ${count}`; });
+function findMatch() { isSearching = true; document.getElementById('search-status').style.display = 'block'; socket.emit('findMatch'); }
+socket.on('matchFound', () => { 
     gameStarted = true;
     document.getElementById('menu-screen').style.display = 'none';
     document.getElementById('ui').style.display = 'flex';
@@ -112,39 +80,45 @@ socket.on('matchFound', () => {
     initGame();
 });
 
-socket.on('syncEnemyResources', (data) => {
-    gameState.p2.gold = data.gold;
-    gameState.p2.hp = data.hp;
-    gameState.p2.mines = data.mines;
-});
-
+socket.on('syncEnemyResources', (data) => { gameState.p2.gold = data.gold; gameState.p2.hp = data.hp; gameState.p2.mines = data.mines; });
 socket.on('enemySpawn', (data) => {
+    let w = data.type === 'wall' ? 80 : 40;
+    let mirroredX = canvas.width - data.x - w;
+    let mirroredY = canvas.height - data.y - 40;
+    gameState.buildings.push({ type: data.type, player: 2, x: mirroredX, y: mirroredY, hp: data.hp, maxHp: data.hp, lastSpawn: Date.now(), lastShot: 0 });
+});
+socket.on('enemyDestroy', (data) => {
     let mirroredX = canvas.width - data.x - (data.type === 'wall' ? 80 : 40);
     let mirroredY = canvas.height - data.y - 40;
-    let hp = data.type === 'wall' ? 1200 : 450;
-    gameState.buildings.push({ type: data.type, player: 2, x: mirroredX, y: mirroredY, hp: hp, maxHp: hp, lastSpawn: Date.now(), lastShot: 0 });
-    gameState.vfx.push({ x: mirroredX + 20, y: mirroredY + 20, time: Date.now(), type: 'spawn' });
+    const bIndex = gameState.buildings.findIndex(b => b.player === 2 && Math.abs(b.x - mirroredX) < 5 && Math.abs(b.y - mirroredY) < 5);
+    if (bIndex !== -1) gameState.buildings.splice(bIndex, 1);
 });
 
-// --- ИГРОВАЯ ЛОГИКА (ПОЛНАЯ) ---
+// --- ИГРОВАЯ МЕХАНИКА ---
 function initGame() {
     resize();
-    for(let i=0; i<50; i++) {
-        decorations.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            size: 2 + Math.random() * 6,
-            type: Math.random() > 0.7 ? 'stone' : 'grass'
-        });
-    }
+    for(let i=0; i<40; i++) decorations.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: 2 + Math.random() * 5, type: Math.random() > 0.5 ? 'stone' : 'grass' });
     setTimeout(() => container.scrollTop = canvas.height, 200);
     update();
 }
 
-function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight * 2.5;
-}
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight * 2.5; }
+
+function toggleSellMode() { sellMode = !sellMode; document.getElementById('sell-btn').classList.toggle('active', sellMode); }
+
+container.onclick = (e) => {
+    if (!sellMode) return;
+    const rect = canvas.getBoundingClientRect();
+    const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const clickY = (e.clientY - rect.top + container.scrollTop) * (canvas.height / rect.height);
+    const bIndex = gameState.buildings.findIndex(b => b.player === 1 && Math.abs(b.x + 20 - clickX) < 30 && Math.abs(b.y + 20 - clickY) < 30);
+    if (bIndex !== -1) {
+        let b = gameState.buildings[bIndex];
+        socket.emit('destroyBuilding', { x: b.x, y: b.y, type: b.type });
+        if (b.type === 'mine') { gameState.p1.income -= 4; gameState.p1.mines--; }
+        gameState.buildings.splice(bIndex, 1);
+    }
+};
 
 let dragging = null;
 function startDrag(type, cost) {
@@ -152,186 +126,127 @@ function startDrag(type, cost) {
     if (gameState.p1.gold >= actualCost && (type !== 'mine' || gameState.p1.mines < 3)) {
         dragging = { type, cost: actualCost };
         dragIcon.style.display = "block";
-        const icons = { barracks: '🏠', archers: '🏹', wall: '🧱', turret: '🛡️', bomb: '💣', mine: '💎' };
-        dragIcon.innerHTML = icons[type];
+        if (type === 'wall') dragIcon.classList.add('wall-drag'); else dragIcon.classList.remove('wall-drag');
+        dragIcon.innerHTML = type === 'wall' ? "" : (type==='barracks'?'🏠':(type==='archers'?'🏹':(type==='mine'?'💎':'🛡️')));
     }
 }
 
-window.addEventListener('touchmove', (e) => {
-    if (dragging) {
-        dragIcon.style.left = e.touches[0].clientX + "px";
-        dragIcon.style.top = e.touches[0].clientY + "px";
-    }
-});
+window.ontouchmove = (e) => { if (dragging) { dragIcon.style.left = e.touches[0].clientX + "px"; dragIcon.style.top = e.touches[0].clientY + "px"; } };
 
-window.addEventListener('touchend', (e) => {
+window.ontouchend = (e) => {
     if (!dragging) return;
     let touch = e.changedTouches[0], cY = touch.clientY + container.scrollTop, cX = touch.clientX;
     let w = dragging.type === 'wall' ? 80 : 40;
-
     if (cY > canvas.height / 2 && cY < canvas.height - 70) {
         gameState.p1.gold -= dragging.cost;
-        socket.emit('spawnUnit', { type: dragging.type, x: cX - w/2, y: cY - 20 });
-        if (dragging.type === 'mine') { gameState.p1.income += 4; gameState.p1.mines++; }
         let hp = dragging.type === 'wall' ? 1200 : 450;
+        socket.emit('spawnUnit', { type: dragging.type, x: cX - w/2, y: cY - 20, hp: hp });
+        if (dragging.type === 'mine') { gameState.p1.income += 4; gameState.p1.mines++; }
         gameState.buildings.push({ type: dragging.type, player: 1, x: cX - w/2, y: cY - 20, hp: hp, maxHp: hp, lastSpawn: Date.now(), lastShot: 0 });
-        gameState.vfx.push({ x: cX, y: cY, time: Date.now(), type: 'spawn' });
     }
     dragging = null; dragIcon.style.display = "none";
-});
+};
 
 function update() {
     if(!gameStarted) return;
-
-    // Синхронизация данных
-    if (Math.floor(Date.now() / 1000) % 1 === 0) {
-        socket.emit('syncResources', { gold: gameState.p1.gold, hp: gameState.p1.hp, mines: gameState.p1.mines });
-    }
-
+    socket.emit('syncResources', { gold: gameState.p1.gold, hp: gameState.p1.hp, mines: gameState.p1.mines });
     gameState.p1.gold += gameState.p1.income / 60;
-    
+
     document.getElementById("gold1").innerText = Math.floor(gameState.p1.gold);
     document.getElementById("gold2").innerText = Math.floor(gameState.p2.gold);
     document.getElementById("hp1").innerText = Math.floor(gameState.p1.hp);
     document.getElementById("hp2").innerText = Math.floor(gameState.p2.hp);
-    document.getElementById("mines1").innerText = gameState.p1.mines;
-    document.getElementById("mines2").innerText = gameState.p2.mines;
 
     // Логика зданий
     gameState.buildings.forEach((b, bi) => {
-        let spawnCD = b.type === 'archers' ? 5000 : 7000;
+        let spawnCD = b.type === 'archers' ? 5000 : 6000;
         if ((b.type === 'barracks' || b.type === 'archers') && Date.now() - b.lastSpawn > spawnCD) {
             let uType = b.type === 'archers' ? 'archer' : 'knight';
-            gameState.units.push({ player: b.player, type: uType, x: b.x + 20, y: b.y + 20, hp: uType === 'archer' ? 60 : 120, maxHp: uType === 'archer' ? 60 : 120, speed: b.player === 1 ? -1.1 : 1.1, lastShot: 0 });
+            gameState.units.push({ player: b.player, type: uType, x: b.x + 20, y: b.y + 20, hp: uType==='archer'?50:100, maxHp: uType==='archer'?50:100, speed: b.player===1?-0.8:0.8, lastShot: 0 });
             b.lastSpawn = Date.now();
         }
-        
-        let shotCD = b.type === 'bomb' ? 3500 : 1400;
+        let shotCD = b.type === 'bomb' ? 3800 : 1500;
         if ((b.type === 'turret' || b.type === 'bomb') && Date.now() - b.lastShot > shotCD) {
-            let target = gameState.units.find(u => u.player !== b.player && Math.hypot(u.x - b.x, u.y - b.y) < ATTACK_RANGE);
-            if (target) {
-                gameState.projectiles.push({ x: b.x+20, y: b.y+20, target: target, type: b.type, player: b.player });
-                b.lastShot = Date.now();
-            }
+            let target = gameState.units.find(u => u.player !== b.player && Math.hypot(u.x - (b.x+20), u.y - (b.y+20)) < ATTACK_RANGE);
+            if (target) { gameState.projectiles.push({ x: b.x+20, y: b.y+20, target, type: b.type, player: b.player }); b.lastShot = Date.now(); }
         }
-        if (b.hp <= 0) {
-            gameState.vfx.push({ x: b.x+20, y: b.y+20, time: Date.now(), type: 'death' });
-            gameState.buildings.splice(bi, 1);
-        }
+        if (b.hp <= 0) gameState.buildings.splice(bi, 1);
     });
 
-    // Логика снарядов
+    // Снаряды
     gameState.projectiles.forEach((p, pi) => {
         let dx = p.target.x - p.x, dy = p.target.y - p.y, dist = Math.hypot(dx, dy);
-        if (dist < 10 || p.target.hp <= 0) {
+        if (dist < 8) {
             if (p.type === 'bomb') {
-                gameState.vfx.push({ x: p.x, y: p.y, time: Date.now(), type: 'explosion' });
-                gameState.units.forEach(u => { if(u.player !== p.player && Math.hypot(u.x - p.x, u.y - p.y) < 100) u.hp -= 80; });
+                gameState.vfx.push({ x: p.x, y: p.y, time: Date.now() });
+                gameState.units.forEach(u => { if(u.player !== p.player && Math.hypot(u.x-p.x, u.y-p.y) < 85) u.hp -= 70; });
             } else { p.target.hp -= 35; }
             gameState.projectiles.splice(pi, 1);
-        } else { p.x += dx / dist * 8; p.y += dy / dist * 8; }
+        } else { p.x += dx/dist*7; p.y += dy/dist*7; }
     });
 
-    // Логика юнитов
+    // Юниты (Бой и движение)
     gameState.units.forEach((u, i) => {
-        let attackRange = u.type === 'archer' ? 150 : 40;
-        let closest = null, minDist = 250;
-        
+        let range = u.type === 'archer' ? 140 : 35;
+        let target = null, minDist = 180;
         gameState.buildings.concat(gameState.units).forEach(obj => {
             if (obj.player !== u.player && obj !== u) {
                 let d = Math.hypot(obj.x - u.x, obj.y - u.y);
-                if (d < minDist) { minDist = d; closest = obj; }
+                if (d < minDist) { minDist = d; target = obj; }
             }
         });
 
-        if (closest && minDist < attackRange) {
+        if (target && minDist < range) {
             if (u.type === 'archer') {
-                if (Date.now() - u.lastShot > 1600) {
-                    gameState.projectiles.push({ x: u.x, y: u.y, target: closest, type: 'arrow', player: u.player });
-                    u.lastShot = Date.now();
-                }
-            } else { closest.hp -= 1.5; }
+                if (Date.now() - u.lastShot > 1500) { gameState.projectiles.push({ x: u.x, y: u.y, target, type: 'arrow', player: u.player }); u.lastShot = Date.now(); }
+            } else { target.hp -= 1.3; }
         } else { u.y += u.speed; }
 
-        if (u.y < 60 && u.player === 1) { gameState.p2.hp -= 30; u.hp = 0; }
-        if (u.y > canvas.height - 60 && u.player === 2) { gameState.p1.hp -= 30; u.hp = 0; }
+        if (u.y < 60 && u.player === 1) { gameState.p2.hp -= 50; u.hp = 0; }
+        if (u.y > canvas.height - 60 && u.player === 2) { gameState.p1.hp -= 50; u.hp = 0; }
         if (u.hp <= 0) gameState.units.splice(i, 1);
     });
 
-    gameState.vfx = gameState.vfx.filter(v => Date.now() - v.time < 1000);
-
-    draw();
-    requestAnimationFrame(update);
+    gameState.vfx = gameState.vfx.filter(v => Date.now() - v.time < 500);
+    draw(); requestAnimationFrame(update);
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Трава и камни
     ctx.fillStyle = "#355e3b"; ctx.fillRect(0,0, canvas.width, canvas.height);
-    decorations.forEach(d => {
-        ctx.fillStyle = d.type === 'stone' ? "#777" : "#2d4d31";
-        ctx.beginPath(); ctx.arc(d.x, d.y, d.size, 0, Math.PI*2); ctx.fill();
-    });
-
-    // Река / Центр
-    ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.fillRect(0, canvas.height/2 - 20, canvas.width, 40);
-    ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 2; ctx.strokeRect(0, canvas.height/2 - 20, canvas.width, 40);
+    decorations.forEach(d => { ctx.fillStyle = d.type==='stone'?'#777':'#2d4d31'; ctx.beginPath(); ctx.arc(d.x, d.y, d.size, 0, Math.PI*2); ctx.fill(); });
     
-    // Базы
-    ctx.fillStyle = "#cc3b3b"; ctx.fillRect(0, 0, canvas.width, 65);
-    ctx.fillStyle = "#3b44cc"; ctx.fillRect(0, canvas.height - 65, canvas.width, 65);
+    ctx.fillStyle = "#ff4444"; ctx.fillRect(0, 0, canvas.width, 60); 
+    ctx.fillStyle = "#4444ff"; ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
 
-    // Здания
     gameState.buildings.forEach(b => {
-        let color = b.player === 1 ? "#4444ff" : "#ff4444";
-        ctx.save();
-        ctx.shadowBlur = 10; ctx.shadowColor = "black";
+        let color = b.player === 1 ? "#3b44cc" : "#cc3b3b";
+        ctx.strokeStyle = "white"; ctx.lineWidth = 2;
         if (b.type === 'barracks' || b.type === 'archers') {
-            ctx.fillStyle = color; ctx.beginPath();
-            ctx.moveTo(b.x, b.y+40); ctx.lineTo(b.x, b.y+15); ctx.lineTo(b.x+20, b.y); ctx.lineTo(b.x+40, b.y+15); ctx.lineTo(b.x+40, b.y+40); ctx.fill();
-            ctx.fillStyle = "white"; ctx.font = "bold 10px Arial"; ctx.fillText(b.type==='archers'?'🏹':'🏠', b.x+12, b.y+30);
+            ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(b.x, b.y+40); ctx.lineTo(b.x, b.y+15); ctx.lineTo(b.x+20, b.y); ctx.lineTo(b.x+40, b.y+15); ctx.lineTo(b.x+40, b.y+40); ctx.closePath(); ctx.fill(); ctx.stroke();
         } else if (b.type === 'wall') {
-            ctx.fillStyle = "#555"; ctx.fillRect(b.x, b.y, 80, 20); ctx.fillStyle = color; ctx.fillRect(b.x, b.y, 80, 5);
+            ctx.fillStyle = color; ctx.fillRect(b.x, b.y, 80, 15); ctx.strokeRect(b.x, b.y, 80, 15);
         } else if (b.type === 'mine') {
-            ctx.fillStyle = "#ffd700"; ctx.beginPath(); ctx.arc(b.x+20, b.y+20, 18, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#000"; ctx.fillText("💎", b.x+12, b.y+25);
+            ctx.fillStyle = "#ffd700"; ctx.beginPath(); ctx.moveTo(b.x+20, b.y); ctx.lineTo(b.x+40, b.y+20); ctx.lineTo(b.x+20, b.y+40); ctx.lineTo(b.x, b.y+20); ctx.closePath(); ctx.fill(); ctx.stroke();
         } else {
-            ctx.fillStyle = "#333"; ctx.fillRect(b.x, b.y+20, 40, 20);
-            ctx.fillStyle = color; ctx.beginPath(); ctx.arc(b.x+20, b.y+15, 15, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#555"; ctx.fillRect(b.x+5, b.y+25, 30, 15); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(b.x+20, b.y+15, 15, 0, Math.PI*2); ctx.fill(); ctx.stroke();
         }
-        ctx.restore();
-        
-        // HP Bar
         let bw = b.type === 'wall' ? 80 : 40;
         ctx.fillStyle = "black"; ctx.fillRect(b.x, b.y - 12, bw, 6);
         ctx.fillStyle = b.player === 1 ? "#5555ff" : "#ff5555"; ctx.fillRect(b.x, b.y - 12, (b.hp / b.maxHp) * bw, 6);
     });
 
-    // Юниты
     gameState.units.forEach(u => {
         ctx.fillStyle = u.player === 1 ? "#4444ff" : "#ff4444";
-        ctx.beginPath();
-        if (u.type === 'archer') { ctx.arc(u.x, u.y, 11, 0, Math.PI*2); }
-        else { ctx.arc(u.x, u.y, 15, 0, Math.PI*2); }
-        ctx.fill(); ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
-        
-        // HP Unit
-        ctx.fillStyle = "black"; ctx.fillRect(u.x-12, u.y-25, 24, 4);
-        ctx.fillStyle = "#0f0"; ctx.fillRect(u.x-12, u.y-25, (u.hp / u.maxHp) * 24, 4);
+        if (u.type === 'archer') {
+            ctx.beginPath(); ctx.moveTo(u.x, u.y - 14); ctx.lineTo(u.x + 12, u.y + 10); ctx.lineTo(u.x - 12, u.y + 10); ctx.closePath(); ctx.fill();
+        } else { ctx.beginPath(); ctx.arc(u.x, u.y, 14, 0, Math.PI*2); ctx.fill(); }
+        ctx.strokeStyle = "white"; ctx.stroke();
+        ctx.fillStyle = "black"; ctx.fillRect(u.x-15, u.y-25, 30, 5); ctx.fillStyle = "#0f0"; ctx.fillRect(u.x-15, u.y-25, (u.hp/u.maxHp)*30, 5);
     });
 
-    // Снаряды и VFX
-    gameState.projectiles.forEach(p => {
-        ctx.fillStyle = p.type === 'bomb' ? "#ff0" : (p.type==='arrow'?'#fff':'#fa0');
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.type==='bomb'?8:4, 0, Math.PI*2); ctx.fill();
-    });
-    
-    gameState.vfx.forEach(v => {
-        if(v.type === 'explosion') {
-            ctx.fillStyle = "rgba(255, 100, 0, 0.5)"; ctx.beginPath(); ctx.arc(v.x, v.y, 100, 0, Math.PI*2); ctx.fill();
-        }
-    });
+    gameState.projectiles.forEach(p => { ctx.fillStyle = p.type==='bomb'?'#ff0':'#fff'; ctx.beginPath(); ctx.arc(p.x, p.y, p.type==='bomb'?8:4, 0, Math.PI*2); ctx.fill(); });
+    gameState.vfx.forEach(v => { ctx.fillStyle = "rgba(255,100,0,0.3)"; ctx.beginPath(); ctx.arc(v.x, v.y, 85, 0, Math.PI*2); ctx.fill(); });
 }
 </script>
 </body>

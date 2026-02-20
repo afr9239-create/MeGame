@@ -33,12 +33,15 @@
             background: rgba(30, 30, 30, 0.95); border: 2px solid #4444ff; 
             width: 55px; height: 65px; text-align: center; border-radius: 8px;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
+            font-size: 10px;
         }
+        .item-icon { font-size: 20px; margin-bottom: 2px; }
+
         .stats { position: fixed; top: 5px; width: 100%; display: none; justify-content: space-between; padding: 0 10px; box-sizing: border-box; z-index: 10; pointer-events: none; }
-        .stat-card { background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 8px; font-size: 11px; border-left: 4px solid #4444ff; backdrop-filter: blur(4px); }
+        .stat-card { background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 8px; font-size: 11px; border-left: 4px solid #4444ff; backdrop-filter: blur(4px); line-height: 1.4; }
         .red-side { border-left: 0; border-right: 4px solid #ff4444; text-align: right; }
         
-        #drag-icon { position: fixed; width: 35px; height: 35px; background: rgba(0,0,255,0.3); border: 2px solid #fff; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; text-align: center; line-height: 35px; border-radius: 50%; }
+        #drag-icon { position: fixed; width: 40px; height: 40px; background: rgba(255,255,255,0.2); border: 2px solid #fff; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; text-align: center; line-height: 40px; border-radius: 8px; font-size: 24px; }
         #range-preview { position: fixed; border: 2px dashed rgba(255,255,255,0.5); border-radius: 50%; pointer-events: none; display: none; z-index: 99; transform: translate(-50%, -50%); }
     </style>
 </head>
@@ -57,21 +60,21 @@
 <div class="stats" id="stats-ui">
     <div class="stat-card">
         💰<span id="gold1">0</span> | 🏰 <span id="hp1">500</span><br>
-        💎 <span id="mines1">0</span> | ⚔️ <span id="bld1">0</span>
+        💎 <span id="mines1">0</span>/3 | ⚔️ <span id="bld1">0</span>
     </div>
     <div class="stat-card red-side">
         🏰 <span id="hp2">500</span> | 💰<span id="gold2">0</span><br>
-        <span id="bld2">0</span> ⚔️ | <span id="mines2">0</span> 💎
+        <span id="bld2">0</span> ⚔️ | <span id="mines2">0</span>/3 💎
     </div>
 </div>
 
 <div id="ui">
-    <div class="shop-item" ontouchstart="startDrag('barracks', 50)">🏠 50</div>
-    <div class="shop-item" ontouchstart="startDrag('archers', 150)">🏹 150</div>
-    <div class="shop-item" ontouchstart="startDrag('wall', 200)">🧱 200</div>
-    <div class="shop-item" ontouchstart="startDrag('turret', 70)">🛡️ 70</div>
-    <div class="shop-item" ontouchstart="startDrag('bomb', 200)">💣 200</div>
-    <div class="shop-item" ontouchstart="startDrag('mine', 100)">💎 <span id="mine-cost-ui">100</span></div>
+    <div class="shop-item" ontouchstart="startDrag('barracks', 50)"><div class="item-icon">🏠</div>50</div>
+    <div class="shop-item" ontouchstart="startDrag('archers', 150)"><div class="item-icon">🏹</div>150</div>
+    <div class="shop-item" ontouchstart="startDrag('wall', 200)"><div class="item-icon">🧱</div>200</div>
+    <div class="shop-item" ontouchstart="startDrag('turret', 70)"><div class="item-icon">🛡️</div>70</div>
+    <div class="shop-item" ontouchstart="startDrag('bomb', 200)"><div class="item-icon">💣</div>200</div>
+    <div class="shop-item" ontouchstart="startDrag('mine', 100)"><div class="item-icon">💎</div><span id="mine-cost-ui">100</span></div>
 </div>
 
 <div id="drag-icon"></div>
@@ -98,7 +101,6 @@ let gameState = {
 };
 
 // --- СЕТЕВАЯ ЛОГИКА ---
-
 socket.on('playerUpdate', (count) => {
     document.getElementById('online-count').innerText = `ИГРОКОВ В СЕТИ: ${count}`;
 });
@@ -107,12 +109,9 @@ function findMatch() {
     if (isSearching) return;
     isSearching = true;
     document.getElementById('search-status').style.display = 'block';
-    
-    // Отправляем серверу сигнал, что мы готовы
     socket.emit('findMatch'); 
 }
 
-// Когда сервер нашел двоих игроков
 socket.on('matchFound', () => {
     startPVPGame();
 });
@@ -128,14 +127,12 @@ function startPVPGame() {
     update();
 }
 
-// СИНХРОНИЗАЦИЯ ДЕНЕГ (Принимаем от врага)
 socket.on('syncEnemyResources', (data) => {
     gameState.p2.gold = data.gold;
     gameState.p2.mines = data.mines;
     gameState.p2.combatBuildings = data.combatBuildings;
 });
 
-// ПРИЕМ ЗДАНИЙ (ЗЕРКАЛЬНО)
 socket.on('enemySpawn', (data) => {
     let mirroredX = canvas.width - data.x - (data.type === 'wall' ? 80 : 40);
     let mirroredY = canvas.height - data.y - 40;
@@ -144,14 +141,14 @@ socket.on('enemySpawn', (data) => {
 });
 
 // --- ИГРОВОЙ ЦИКЛ ---
-
 let dragging = null;
 function startDrag(type, cost) {
     let actualCost = type === 'mine' ? 100 + (gameState.p1.mines * 100) : cost;
     if (gameState.p1.gold >= actualCost && (type !== 'mine' || gameState.p1.mines < 3)) {
         dragging = { type, cost: actualCost };
         dragIcon.style.display = "block";
-        dragIcon.innerHTML = type === 'barracks' ? "🏠" : (type === 'mine' ? "💎" : "🛡️");
+        const icons = { barracks: '🏠', archers: '🏹', wall: '🧱', turret: '🛡️', bomb: '💣', mine: '💎' };
+        dragIcon.innerHTML = icons[type];
     }
 }
 
@@ -169,13 +166,9 @@ window.addEventListener('touchend', (e) => {
 
     if (cY > canvas.height / 2 && cY < canvas.height - 70) {
         gameState.p1.gold -= dragging.cost;
-        
-        // Отправка на сервер
         socket.emit('spawnUnit', { type: dragging.type, x: cX - w/2, y: cY - 20 });
-        
         if (dragging.type === 'mine') { gameState.p1.income += 4; gameState.p1.mines++; }
         else { gameState.p1.combatBuildings++; }
-        
         let hp = (dragging.type === 'wall') ? 1200 : 450;
         gameState.buildings.push({ type: dragging.type, player: 1, x: cX - w/2, y: cY - 20, hp: hp, maxHp: hp, lastSpawn: Date.now(), lastShot: 0 });
     }
@@ -184,19 +177,10 @@ window.addEventListener('touchend', (e) => {
 
 function update() {
     if(!gameStarted) return;
-
-    // СИНХРОНИЗАЦИЯ ДАННЫХ ДЛЯ ВРАГА (раз в секунду)
-    if (Math.floor(Date.now() / 1000) % 1 === 0) {
-        socket.emit('syncResources', {
-            gold: gameState.p1.gold,
-            mines: gameState.p1.mines,
-            combatBuildings: gameState.p1.combatBuildings
-        });
-    }
+    socket.emit('syncResources', { gold: gameState.p1.gold, mines: gameState.p1.mines, combatBuildings: gameState.p1.combatBuildings });
 
     gameState.p1.gold += gameState.p1.income / 60;
     
-    // UI
     document.getElementById("gold1").innerText = Math.floor(gameState.p1.gold);
     document.getElementById("gold2").innerText = Math.floor(gameState.p2.gold);
     document.getElementById("hp1").innerText = Math.floor(gameState.p1.hp);
@@ -204,47 +188,71 @@ function update() {
     document.getElementById("mines1").innerText = gameState.p1.mines;
     document.getElementById("mines2").innerText = gameState.p2.mines;
 
-    // Логика стрельбы, ходьбы и урона (та же, что была в твоем коде)
     processUnits(); 
-    
     draw();
     requestAnimationFrame(update);
 }
 
 function processUnits() {
-    // Движение юнитов (зеркальное)
     gameState.units.forEach((u, i) => {
         u.y += u.speed;
-        if (u.y < 50 && u.player === 1) { gameState.p2.hp -= 50; u.hp = 0; }
-        if (u.y > canvas.height - 50 && u.player === 2) { gameState.p1.hp -= 50; u.hp = 0; }
+        if (u.y < 50 && u.player === 1) { gameState.p2.hp -= 10; u.hp = 0; }
+        if (u.y > canvas.height - 50 && u.player === 2) { gameState.p1.hp -= 10; u.hp = 0; }
         if (u.hp <= 0) gameState.units.splice(i, 1);
     });
 
-    // Спавн из казарм
     gameState.buildings.forEach(b => {
-        if ((b.type === 'barracks' || b.type === 'archers') && Date.now() - b.lastSpawn > 6000) {
-            gameState.units.push({ player: b.player, x: b.x + 20, y: b.y + 20, hp: 100, maxHp: 100, speed: b.player === 1 ? -0.8 : 0.8 });
+        let cd = (b.type === 'archers') ? 5000 : 7000;
+        if ((b.type === 'barracks' || b.type === 'archers') && Date.now() - b.lastSpawn > cd) {
+            gameState.units.push({ 
+                player: b.player, type: b.type === 'archers' ? 'archer' : 'knight',
+                x: b.x + 20, y: b.y + 20, hp: 100, maxHp: 100, 
+                speed: b.player === 1 ? -1.2 : 1.2 
+            });
             b.lastSpawn = Date.now();
         }
     });
 }
 
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight * 2.5; }
+
+function drawBuilding(b) {
+    let color = b.player === 1 ? "#3b44cc" : "#cc3b3b";
+    ctx.strokeStyle = "white"; ctx.lineWidth = 2;
+    
+    if (b.type === 'barracks' || b.type === 'archers') { 
+        ctx.fillStyle = color; ctx.beginPath();
+        ctx.moveTo(b.x, b.y+40); ctx.lineTo(b.x, b.y+15); ctx.lineTo(b.x+20, b.y); ctx.lineTo(b.x+40, b.y+15); ctx.lineTo(b.x+40, b.y+40); ctx.fill(); ctx.stroke();
+    } else if (b.type === 'wall') {
+        ctx.fillStyle = color; ctx.fillRect(b.x, b.y, 80, 15); ctx.strokeRect(b.x, b.y, 80, 15);
+    } else if (b.type === 'mine') {
+        ctx.fillStyle = "#ffd700"; ctx.beginPath();
+        ctx.moveTo(b.x+20, b.y); ctx.lineTo(b.x+40, b.y+20); ctx.lineTo(b.x+20, b.y+40); ctx.lineTo(b.x, b.y+20); ctx.fill(); ctx.stroke();
+    } else {
+        ctx.fillStyle = color; ctx.fillRect(b.x, b.y, 40, 40); ctx.strokeRect(b.x, b.y, 40, 40);
+    }
+    
+    let bw = b.type === 'wall' ? 80 : 40;
+    ctx.fillStyle = "black"; ctx.fillRect(b.x, b.y - 12, bw, 6);
+    ctx.fillStyle = b.player === 1 ? "#5555ff" : "#ff5555"; ctx.fillRect(b.x, b.y - 12, (b.hp / b.maxHp) * bw, 6);
+}
+
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#355e3b"; ctx.fillRect(0,0, canvas.width, canvas.height);
-    // Линия центра
     ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.fillRect(0, canvas.height/2 - 2, canvas.width, 4);
     
-    gameState.buildings.forEach(b => {
-        ctx.fillStyle = b.player === 1 ? "#3b44cc" : "#cc3b3b";
-        ctx.fillRect(b.x, b.y, b.type === 'wall' ? 80 : 40, 40);
-        ctx.fillStyle = "white"; ctx.fillRect(b.x, b.y - 10, (b.hp/b.maxHp)*40, 5);
-    });
+    ctx.fillStyle = "#ff4444"; ctx.fillRect(0, 0, canvas.width, 60); 
+    ctx.fillStyle = "#4444ff"; ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+
+    gameState.buildings.forEach(drawBuilding);
 
     gameState.units.forEach(u => {
         ctx.fillStyle = u.player === 1 ? "#4444ff" : "#ff4444";
-        ctx.beginPath(); ctx.arc(u.x, u.y, 14, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath();
+        if (u.type === 'archer') { ctx.arc(u.x, u.y, 10, 0, Math.PI*2); }
+        else { ctx.arc(u.x, u.y, 14, 0, Math.PI*2); }
+        ctx.fill(); ctx.stroke();
     });
 }
 </script>

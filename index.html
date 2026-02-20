@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>War Castle: Arena PVP</title>
+    <title>War Castle: Arena PVP Full</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
@@ -10,84 +10,52 @@
         #game-container::-webkit-scrollbar { display: none; }
         canvas { display: block; background: #355e3b; width: 100%; height: auto; }
 
-        /* МЕНЮ И ПОИСК БОЯ */
-        #menu-screen { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: linear-gradient(135deg, #1a1a1a 0%, #000 100%); 
-            z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; 
-        }
-        .menu-card { background: rgba(255,255,255,0.05); padding: 40px; border-radius: 20px; border: 1px solid #444; text-align: center; backdrop-filter: blur(10px); }
-        .btn-battle { 
-            background: linear-gradient(to bottom, #ff00ff, #800080); border: none; color: white; 
-            padding: 15px 50px; font-size: 24px; font-weight: bold; border-radius: 50px; 
-            cursor: pointer; box-shadow: 0 0 20px rgba(255,0,255,0.4); transition: 0.3s;
-        }
-        .btn-battle:active { transform: scale(0.9); }
-        .searching-text { color: #00ffff; margin-top: 20px; display: none; font-style: italic; animation: blink 1s infinite; }
+        /* МЕНЮ */
+        #menu-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a1a; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .btn-battle { background: #ff00ff; border: none; color: white; padding: 15px 50px; font-size: 24px; font-weight: bold; border-radius: 50px; cursor: pointer; }
+        .searching-text { color: #00ffff; margin-top: 20px; display: none; }
         
-        @keyframes blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
-
-        /* ИНТЕРФЕЙС ИГРЫ */
+        /* ИНТЕРФЕЙС */
         #ui { position: fixed; bottom: 10px; left: 0; width: 100%; display: none; justify-content: center; gap: 6px; z-index: 10; }
-        .shop-item { 
-            background: rgba(30, 30, 30, 0.95); border: 2px solid #4444ff; 
-            width: 55px; height: 65px; text-align: center; border-radius: 8px;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            font-size: 10px;
-        }
-        .item-icon { font-size: 20px; margin-bottom: 2px; }
-
+        .shop-item { background: rgba(30, 30, 30, 0.95); border: 2px solid #4444ff; width: 55px; height: 65px; text-align: center; border-radius: 8px; font-size: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .stats { position: fixed; top: 5px; width: 100%; display: none; justify-content: space-between; padding: 0 10px; box-sizing: border-box; z-index: 10; pointer-events: none; }
-        .stat-card { background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 8px; font-size: 11px; border-left: 4px solid #4444ff; backdrop-filter: blur(4px); line-height: 1.4; }
+        .stat-card { background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 8px; font-size: 11px; border-left: 4px solid #4444ff; }
         .red-side { border-left: 0; border-right: 4px solid #ff4444; text-align: right; }
         
-        #drag-icon { position: fixed; width: 40px; height: 40px; background: rgba(255,255,255,0.2); border: 2px solid #fff; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; text-align: center; line-height: 40px; border-radius: 8px; font-size: 24px; }
-        #range-preview { position: fixed; border: 2px dashed rgba(255,255,255,0.5); border-radius: 50%; pointer-events: none; display: none; z-index: 99; transform: translate(-50%, -50%); }
+        #drag-icon { position: fixed; width: 40px; height: 40px; background: rgba(255,255,255,0.2); border: 2px solid #fff; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; text-align: center; line-height: 40px; font-size: 24px; }
     </style>
 </head>
 <body>
 
 <div id="menu-screen">
-    <div class="menu-card">
-        <h1 style="color: #fff; margin-bottom: 5px;">WAR CASTLE</h1>
-        <p style="color: #888; margin-bottom: 30px;">Online Multiplayer PVP</p>
-        <button class="btn-battle" onclick="findMatch()">В БОЙ</button>
-        <div id="search-status" class="searching-text">ПОИСК ДОСТОЙНОГО СОПЕРНИКА...</div>
-        <p id="online-count" style="color: #444; font-size: 12px; margin-top: 15px;">Загрузка сервера...</p>
-    </div>
+    <h1 style="color: #fff;">WAR CASTLE</h1>
+    <button class="btn-battle" onclick="findMatch()">В БОЙ</button>
+    <div id="search-status" class="searching-text">ПОИСК СОПЕРНИКА...</div>
+    <p id="online-count" style="color: #444;">Игроков: 0</p>
 </div>
 
 <div class="stats" id="stats-ui">
-    <div class="stat-card">
-        💰<span id="gold1">0</span> | 🏰 <span id="hp1">500</span><br>
-        💎 <span id="mines1">0</span>/3 | ⚔️ <span id="bld1">0</span>
-    </div>
-    <div class="stat-card red-side">
-        🏰 <span id="hp2">500</span> | 💰<span id="gold2">0</span><br>
-        <span id="bld2">0</span> ⚔️ | <span id="mines2">0</span>/3 💎
-    </div>
+    <div class="stat-card">💰<span id="gold1">0</span> | 🏰 <span id="hp1">500</span></div>
+    <div class="stat-card red-side">🏰 <span id="hp2">500</span> | 💰<span id="gold2">0</span></div>
 </div>
 
 <div id="ui">
-    <div class="shop-item" ontouchstart="startDrag('barracks', 50)"><div class="item-icon">🏠</div>50</div>
-    <div class="shop-item" ontouchstart="startDrag('archers', 150)"><div class="item-icon">🏹</div>150</div>
-    <div class="shop-item" ontouchstart="startDrag('wall', 200)"><div class="item-icon">🧱</div>200</div>
-    <div class="shop-item" ontouchstart="startDrag('turret', 70)"><div class="item-icon">🛡️</div>70</div>
-    <div class="shop-item" ontouchstart="startDrag('bomb', 200)"><div class="item-icon">💣</div>200</div>
-    <div class="shop-item" ontouchstart="startDrag('mine', 100)"><div class="item-icon">💎</div><span id="mine-cost-ui">100</span></div>
+    <div class="shop-item" ontouchstart="startDrag('barracks', 50)">🏠 50</div>
+    <div class="shop-item" ontouchstart="startDrag('archers', 150)">🏹 150</div>
+    <div class="shop-item" ontouchstart="startDrag('wall', 200)">🧱 200</div>
+    <div class="shop-item" ontouchstart="startDrag('turret', 70)">🛡️ 70</div>
+    <div class="shop-item" ontouchstart="startDrag('bomb', 200)">💣 200</div>
+    <div class="shop-item" ontouchstart="startDrag('mine', 100)">💎 <span id="mine-cost-ui">100</span></div>
 </div>
 
 <div id="drag-icon"></div>
-<div id="range-preview"></div>
-
-<div id="game-container">
-    <canvas id="gameCanvas"></canvas>
-</div>
+<div id="game-container"><canvas id="gameCanvas"></canvas></div>
 
 <script>
 const socket = io("https://war-castle.onrender.com");
 let gameStarted = false;
 let isSearching = false;
+const ATTACK_RANGE = 320;
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -95,28 +63,19 @@ const container = document.getElementById("game-container");
 const dragIcon = document.getElementById("drag-icon");
 
 let gameState = {
-    p1: { gold: 100, hp: 500, income: 3, mines: 0, combatBuildings: 0 }, 
-    p2: { gold: 100, hp: 500, income: 3, mines: 0, combatBuildings: 0 }, 
+    p1: { gold: 100, hp: 500, income: 3, mines: 0 }, 
+    p2: { gold: 100, hp: 500, income: 3, mines: 0 }, 
     units: [], buildings: [], projectiles: [], vfx: []
 };
 
-// --- СЕТЕВАЯ ЛОГИКА ---
-socket.on('playerUpdate', (count) => {
-    document.getElementById('online-count').innerText = `ИГРОКОВ В СЕТИ: ${count}`;
-});
-
-function findMatch() {
-    if (isSearching) return;
-    isSearching = true;
-    document.getElementById('search-status').style.display = 'block';
+// --- СЕТЬ ---
+socket.on('playerUpdate', (count) => { document.getElementById('online-count').innerText = `Игроков: ${count}`; });
+function findMatch() { 
+    isSearching = true; 
+    document.getElementById('search-status').style.display = 'block'; 
     socket.emit('findMatch'); 
 }
-
-socket.on('matchFound', () => {
-    startPVPGame();
-});
-
-function startPVPGame() {
+socket.on('matchFound', () => { 
     gameStarted = true;
     document.getElementById('menu-screen').style.display = 'none';
     document.getElementById('ui').style.display = 'flex';
@@ -125,134 +84,129 @@ function startPVPGame() {
     resize();
     setTimeout(() => container.scrollTop = canvas.height, 200);
     update();
-}
-
-socket.on('syncEnemyResources', (data) => {
-    gameState.p2.gold = data.gold;
-    gameState.p2.mines = data.mines;
-    gameState.p2.combatBuildings = data.combatBuildings;
 });
 
+socket.on('syncEnemyResources', (data) => { gameState.p2.gold = data.gold; gameState.p2.hp = data.hp; });
 socket.on('enemySpawn', (data) => {
     let mirroredX = canvas.width - data.x - (data.type === 'wall' ? 80 : 40);
     let mirroredY = canvas.height - data.y - 40;
-    let hp = (data.type === 'wall') ? 1200 : 450;
-    gameState.buildings.push({ type: data.type, player: 2, x: mirroredX, y: mirroredY, hp: hp, maxHp: hp, lastSpawn: Date.now(), lastShot: 0 });
+    gameState.buildings.push({ type: data.type, player: 2, x: mirroredX, y: mirroredY, hp: data.type === 'wall' ? 1200 : 450, maxHp: data.type === 'wall' ? 1200 : 450, lastSpawn: Date.now(), lastShot: 0 });
 });
 
-// --- ИГРОВОЙ ЦИКЛ ---
+// --- ЛОГИКА ---
 let dragging = null;
 function startDrag(type, cost) {
     let actualCost = type === 'mine' ? 100 + (gameState.p1.mines * 100) : cost;
-    if (gameState.p1.gold >= actualCost && (type !== 'mine' || gameState.p1.mines < 3)) {
+    if (gameState.p1.gold >= actualCost) {
         dragging = { type, cost: actualCost };
         dragIcon.style.display = "block";
-        const icons = { barracks: '🏠', archers: '🏹', wall: '🧱', turret: '🛡️', bomb: '💣', mine: '💎' };
-        dragIcon.innerHTML = icons[type];
+        dragIcon.innerHTML = type === 'barracks' ? '🏠' : (type === 'mine' ? '💎' : '🛡️');
     }
 }
 
-window.addEventListener('touchmove', (e) => {
-    if (dragging) {
-        dragIcon.style.left = e.touches[0].clientX + "px";
-        dragIcon.style.top = e.touches[0].clientY + "px";
-    }
-});
+window.addEventListener('touchmove', (e) => { if (dragging) { dragIcon.style.left = e.touches[0].clientX + "px"; dragIcon.style.top = e.touches[0].clientY + "px"; } });
 
 window.addEventListener('touchend', (e) => {
     if (!dragging) return;
     let touch = e.changedTouches[0], cY = touch.clientY + container.scrollTop, cX = touch.clientX;
-    let w = dragging.type === 'wall' ? 80 : 40;
-
     if (cY > canvas.height / 2 && cY < canvas.height - 70) {
         gameState.p1.gold -= dragging.cost;
-        socket.emit('spawnUnit', { type: dragging.type, x: cX - w/2, y: cY - 20 });
+        socket.emit('spawnUnit', { type: dragging.type, x: cX - 20, y: cY - 20 });
         if (dragging.type === 'mine') { gameState.p1.income += 4; gameState.p1.mines++; }
-        else { gameState.p1.combatBuildings++; }
-        let hp = (dragging.type === 'wall') ? 1200 : 450;
-        gameState.buildings.push({ type: dragging.type, player: 1, x: cX - w/2, y: cY - 20, hp: hp, maxHp: hp, lastSpawn: Date.now(), lastShot: 0 });
+        gameState.buildings.push({ type: dragging.type, player: 1, x: cX - 20, y: cY - 20, hp: dragging.type === 'wall' ? 1200 : 450, maxHp: dragging.type === 'wall' ? 1200 : 450, lastSpawn: Date.now(), lastShot: 0 });
     }
     dragging = null; dragIcon.style.display = "none";
 });
 
 function update() {
     if(!gameStarted) return;
-    socket.emit('syncResources', { gold: gameState.p1.gold, mines: gameState.p1.mines, combatBuildings: gameState.p1.combatBuildings });
-
+    socket.emit('syncResources', { gold: gameState.p1.gold, hp: gameState.p1.hp });
     gameState.p1.gold += gameState.p1.income / 60;
     
     document.getElementById("gold1").innerText = Math.floor(gameState.p1.gold);
     document.getElementById("gold2").innerText = Math.floor(gameState.p2.gold);
     document.getElementById("hp1").innerText = Math.floor(gameState.p1.hp);
     document.getElementById("hp2").innerText = Math.floor(gameState.p2.hp);
-    document.getElementById("mines1").innerText = gameState.p1.mines;
-    document.getElementById("mines2").innerText = gameState.p2.mines;
 
-    processUnits(); 
+    // Логика зданий (стрельба и спавн)
+    gameState.buildings.forEach((b, bi) => {
+        let spawnCD = b.type === 'archers' ? 5000 : 6000;
+        if ((b.type === 'barracks' || b.type === 'archers') && Date.now() - b.lastSpawn > spawnCD) {
+            let uType = b.type === 'archers' ? 'archer' : 'knight';
+            gameState.units.push({ player: b.player, type: uType, x: b.x + 20, y: b.y + 20, hp: uType === 'archer' ? 50 : 100, maxHp: uType === 'archer' ? 50 : 100, speed: b.player === 1 ? -0.9 : 0.9, lastShot: 0 });
+            b.lastSpawn = Date.now();
+        }
+        let shotCD = b.type === 'bomb' ? 3800 : 1500;
+        if ((b.type === 'turret' || b.type === 'bomb') && Date.now() - b.lastShot > shotCD) {
+            let target = gameState.units.find(u => u.player !== b.player && Math.hypot(u.x - b.x, u.y - b.y) < ATTACK_RANGE);
+            if (target) { gameState.projectiles.push({ x: b.x+20, y: b.y+20, target, type: b.type, player: b.player }); b.lastShot = Date.now(); }
+        }
+        if (b.hp <= 0) gameState.buildings.splice(bi, 1);
+    });
+
+    // Логика снарядов
+    gameState.projectiles.forEach((p, pi) => {
+        let dx = p.target.x - p.x, dy = p.target.y - p.y, dist = Math.hypot(dx, dy);
+        if (dist < 10) {
+            p.target.hp -= p.type === 'bomb' ? 70 : 30;
+            gameState.projectiles.splice(pi, 1);
+        } else { p.x += dx / dist * 7; p.y += dy / dist * 7; }
+    });
+
+    // Логика юнитов (Бой и движение)
+    gameState.units.forEach((u, i) => {
+        let range = u.type === 'archer' ? 140 : 35;
+        let target = null, minDist = 200;
+        gameState.buildings.concat(gameState.units).forEach(obj => {
+            if (obj.player !== u.player && obj !== u) {
+                let d = Math.hypot(obj.x - u.x, obj.y - u.y);
+                if (d < minDist) { minDist = d; target = obj; }
+            }
+        });
+
+        if (target && minDist < range) {
+            if (u.type === 'archer') {
+                if (Date.now() - u.lastShot > 1500) { gameState.projectiles.push({ x: u.x, y: u.y, target, type: 'arrow', player: u.player }); u.lastShot = Date.now(); }
+            } else { target.hp -= 1.3; }
+        } else { u.y += u.speed; }
+
+        if (u.y < 60 && u.player === 1) { gameState.p2.hp -= 20; u.hp = 0; }
+        if (u.y > canvas.height - 60 && u.player === 2) { gameState.p1.hp -= 20; u.hp = 0; }
+        if (u.hp <= 0) gameState.units.splice(i, 1);
+    });
+
     draw();
     requestAnimationFrame(update);
 }
 
-function processUnits() {
-    gameState.units.forEach((u, i) => {
-        u.y += u.speed;
-        if (u.y < 50 && u.player === 1) { gameState.p2.hp -= 10; u.hp = 0; }
-        if (u.y > canvas.height - 50 && u.player === 2) { gameState.p1.hp -= 10; u.hp = 0; }
-        if (u.hp <= 0) gameState.units.splice(i, 1);
-    });
-
-    gameState.buildings.forEach(b => {
-        let cd = (b.type === 'archers') ? 5000 : 7000;
-        if ((b.type === 'barracks' || b.type === 'archers') && Date.now() - b.lastSpawn > cd) {
-            gameState.units.push({ 
-                player: b.player, type: b.type === 'archers' ? 'archer' : 'knight',
-                x: b.x + 20, y: b.y + 20, hp: 100, maxHp: 100, 
-                speed: b.player === 1 ? -1.2 : 1.2 
-            });
-            b.lastSpawn = Date.now();
-        }
-    });
-}
-
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight * 2.5; }
-
-function drawBuilding(b) {
-    let color = b.player === 1 ? "#3b44cc" : "#cc3b3b";
-    ctx.strokeStyle = "white"; ctx.lineWidth = 2;
-    
-    if (b.type === 'barracks' || b.type === 'archers') { 
-        ctx.fillStyle = color; ctx.beginPath();
-        ctx.moveTo(b.x, b.y+40); ctx.lineTo(b.x, b.y+15); ctx.lineTo(b.x+20, b.y); ctx.lineTo(b.x+40, b.y+15); ctx.lineTo(b.x+40, b.y+40); ctx.fill(); ctx.stroke();
-    } else if (b.type === 'wall') {
-        ctx.fillStyle = color; ctx.fillRect(b.x, b.y, 80, 15); ctx.strokeRect(b.x, b.y, 80, 15);
-    } else if (b.type === 'mine') {
-        ctx.fillStyle = "#ffd700"; ctx.beginPath();
-        ctx.moveTo(b.x+20, b.y); ctx.lineTo(b.x+40, b.y+20); ctx.lineTo(b.x+20, b.y+40); ctx.lineTo(b.x, b.y+20); ctx.fill(); ctx.stroke();
-    } else {
-        ctx.fillStyle = color; ctx.fillRect(b.x, b.y, 40, 40); ctx.strokeRect(b.x, b.y, 40, 40);
-    }
-    
-    let bw = b.type === 'wall' ? 80 : 40;
-    ctx.fillStyle = "black"; ctx.fillRect(b.x, b.y - 12, bw, 6);
-    ctx.fillStyle = b.player === 1 ? "#5555ff" : "#ff5555"; ctx.fillRect(b.x, b.y - 12, (b.hp / b.maxHp) * bw, 6);
-}
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#355e3b"; ctx.fillRect(0,0, canvas.width, canvas.height);
-    ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.fillRect(0, canvas.height/2 - 2, canvas.width, 4);
+    ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.fillRect(0, canvas.height/2-2, canvas.width, 4);
     
+    // Базы
     ctx.fillStyle = "#ff4444"; ctx.fillRect(0, 0, canvas.width, 60); 
     ctx.fillStyle = "#4444ff"; ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
 
-    gameState.buildings.forEach(drawBuilding);
+    gameState.buildings.forEach(b => {
+        ctx.fillStyle = b.player === 1 ? "#3b44cc" : "#cc3b3b";
+        ctx.fillRect(b.x, b.y, b.type === 'wall' ? 80 : 40, 40);
+        ctx.fillStyle = "black"; ctx.fillRect(b.x, b.y-10, 40, 5);
+        ctx.fillStyle = "lime"; ctx.fillRect(b.x, b.y-10, (b.hp/b.maxHp)*40, 5);
+    });
 
     gameState.units.forEach(u => {
         ctx.fillStyle = u.player === 1 ? "#4444ff" : "#ff4444";
-        ctx.beginPath();
-        if (u.type === 'archer') { ctx.arc(u.x, u.y, 10, 0, Math.PI*2); }
-        else { ctx.arc(u.x, u.y, 14, 0, Math.PI*2); }
-        ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(u.x, u.y, u.type === 'archer' ? 10 : 14, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "red"; ctx.fillRect(u.x-10, u.y-20, 20, 3);
+        ctx.fillStyle = "lime"; ctx.fillRect(u.x-10, u.y-20, (u.hp/u.maxHp)*20, 3);
+    });
+
+    gameState.projectiles.forEach(p => {
+        ctx.fillStyle = p.type === 'bomb' ? "yellow" : "white";
+        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill();
     });
 }
 </script>

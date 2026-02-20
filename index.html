@@ -1,79 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>War Castle: RPG Base</title>
+    <title>War Castle: Nature & Combat</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { margin: 0; background: #1a1a1a; overflow: hidden; font-family: 'Arial', sans-serif; touch-action: none; }
+        body { margin: 0; background: #2d4c2d; overflow: hidden; font-family: sans-serif; touch-action: none; }
         canvas { display: block; }
 
-        /* Интерфейс управления */
-        #joystick-container {
-            position: fixed; bottom: 50px; left: 50px;
+        #joystick-ui {
+            position: fixed; bottom: 40px; left: 40px;
             width: 100px; height: 100px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 50%; border: 2px solid rgba(255,255,255,0.2);
             z-index: 100;
         }
-        #joystick-knob {
+        #knob {
             position: absolute; top: 30px; left: 30px;
             width: 40px; height: 40px;
-            background: rgba(255, 255, 255, 0.4);
-            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5); border-radius: 50%;
         }
 
         #attack-btn {
-            position: fixed; bottom: 60px; right: 50px;
-            width: 80px; height: 80px;
-            background: rgba(255, 0, 0, 0.5);
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: bold; font-size: 14px;
-            z-index: 100; user-select: none;
+            position: fixed; bottom: 50px; right: 50px;
+            width: 90px; height: 90px;
+            background: rgba(255, 50, 50, 0.6);
+            border: 5px solid white; border-radius: 50%;
+            color: white; font-weight: bold; display: flex;
+            align-items: center; justify-content: center; z-index: 100;
         }
 
-        /* Настройки */
-        #settings-btn {
-            position: fixed; top: 20px; right: 20px;
-            width: 40px; height: 40px; background: rgba(0,0,0,0.5);
-            border-radius: 8px; color: white; display: flex;
-            align-items: center; justify-content: center; cursor: pointer; z-index: 110;
+        #settings-panel {
+            position: fixed; top: 10px; right: 10px; z-index: 200;
         }
-        #settings-menu {
-            position: fixed; top: 70px; right: 20px;
-            background: rgba(0,0,0,0.9); padding: 15px;
-            border-radius: 10px; display: none; z-index: 110;
-        }
-        .menu-btn {
-            background: #444; color: white; border: none;
-            padding: 10px; border-radius: 5px; width: 100%; cursor: pointer;
-        }
-
-        #ui-info {
-            position: fixed; top: 20px; left: 20px;
-            color: white; pointer-events: none; text-shadow: 1px 1px 2px #000;
-        }
+        .btn { background: rgba(0,0,0,0.6); color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-<div id="ui-info">
-    <div style="font-size: 18px; font-weight: bold;">WAR CASTLE RPG</div>
-    <div id="coords">X: 0 Y: 0</div>
+<div id="settings-panel">
+    <button class="btn" onclick="toggleFS()">ПОЛНЫЙ ЭКРАН</button>
 </div>
 
-<div id="settings-btn" onclick="toggleSettings()">⚙️</div>
-<div id="settings-menu">
-    <button class="menu-btn" onclick="toggleFullscreen()">На весь экран</button>
-</div>
-
-<div id="joystick-container">
-    <div id="joystick-knob"></div>
-</div>
-
-<div id="attack-btn" ontouchstart="doAttack()" onmousedown="doAttack()">УДАР</div>
+<div id="joystick-ui"><div id="knob"></div></div>
+<div id="attack-btn" ontouchstart="handleAttack()">УДАР</div>
 
 <canvas id="gameCanvas"></canvas>
 
@@ -82,45 +52,47 @@ const socket = io("https://war-castle.onrender.com");
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// Игрок и камера
 let myId = null;
-const players = {}; 
-let myPos = { x: 0, y: 0, color: '#' + Math.floor(Math.random()*16777215).toString(16), angle: 0 };
+const players = {};
+let myPos = { x: 0, y: 0, color: 'hsl('+Math.random()*360+', 70%, 60%)', angle: 0 };
 let moveDir = { x: 0, y: 0 };
-const speed = 4;
-const zoom = 0.7; // Одаление камеры (чем меньше, тем дальше)
+const speed = 5;
+const viewScale = 0.6; // Отдаление камеры
 
-// Анимация атаки
-let attackFrame = 0;
-let isAttacking = false;
+// Состояние боя
+let lastHand = 'left'; // Какая рука била последней
+let atkProgress = 0; 
+let isAtk = false;
 
-// --- СИСТЕМА УПРАВЛЕНИЯ ---
-const joystick = document.getElementById("joystick-container");
-const knob = document.getElementById("joystick-knob");
+// Окружение
+const objects = [];
+for(let i=0; i<100; i++) {
+    objects.push({
+        x: (Math.random()-0.5)*4000,
+        y: (Math.random()-0.5)*4000,
+        type: Math.random() > 0.6 ? 'tree' : (Math.random() > 0.5 ? 'rock' : 'bush'),
+        size: 30 + Math.random()*40
+    });
+}
+
+function toggleFS() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+}
+
+function handleAttack() {
+    if (isAtk) return;
+    isAtk = true;
+    atkProgress = 0;
+    lastHand = (lastHand === 'left') ? 'right' : 'left';
+}
+
+// Джойстик
+const joy = document.getElementById("joystick-ui");
+const knob = document.getElementById("knob");
 let joyActive = false;
 
-function toggleSettings() {
-    const menu = document.getElementById('settings-menu');
-    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-}
-
-function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen();
-    } else {
-        document.exitFullscreen();
-    }
-}
-
-function doAttack() {
-    if (isAttacking) return;
-    isAttacking = true;
-    attackFrame = 0;
-    // Отправляем на сервер сигнал атаки, чтобы другие видели анимацию
-    socket.emit('playerAttack');
-}
-
-joystick.addEventListener('touchstart', (e) => { joyActive = true; moveJoy(e); });
+joy.addEventListener('touchstart', (e) => { joyActive = true; moveJoy(e); });
 window.addEventListener('touchmove', (e) => { if(joyActive) moveJoy(e); });
 window.addEventListener('touchend', () => {
     joyActive = false;
@@ -129,119 +101,82 @@ window.addEventListener('touchend', () => {
 });
 
 function moveJoy(e) {
-    const touch = e.touches[0];
-    const rect = joystick.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    let dx = touch.clientX - cx;
-    let dy = touch.clientY - cy;
-    const d = Math.sqrt(dx*dx + dy*dy);
-    if (d > 35) { dx *= 35/d; dy *= 35/d; }
+    const t = e.touches[0];
+    const r = joy.getBoundingClientRect();
+    const cx = r.left + r.width/2;
+    const cy = r.top + r.height/2;
+    let dx = t.clientX - cx, dy = t.clientY - cy;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if(dist > 40) { dx *= 40/dist; dy *= 40/dist; }
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
-    moveDir = { x: dx/35, y: dy/35 };
-    // Поворот игрока в сторону движения
-    if (d > 5) myPos.angle = Math.atan2(dy, dx);
+    moveDir = { x: dx/40, y: dy/40 };
+    if(dist > 5) myPos.angle = Math.atan2(dy, dx);
 }
 
-// --- СЕТЬ ---
-socket.on('connect', () => {
-    myId = socket.id;
-    socket.emit('initPlayer', { ...myPos });
-});
-
-socket.on('updatePlayers', (serverPlayers) => {
-    for (let id in serverPlayers) players[id] = serverPlayers[id];
-    for (let id in players) if (!serverPlayers[id]) delete players[id];
-});
-
-// --- ЦИКЛ ---
-function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-window.onresize = resize;
-resize();
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.onresize = resize; resize();
 
 function update() {
-    if (moveDir.x !== 0 || moveDir.y !== 0) {
-        myPos.x += moveDir.x * speed;
-        myPos.y += moveDir.y * speed;
-        socket.emit('move', { x: myPos.x, y: myPos.y, angle: myPos.angle });
-        document.getElementById('coords').innerText = `X: ${Math.floor(myPos.x)} Y: ${Math.floor(myPos.y)}`;
+    myPos.x += moveDir.x * speed;
+    myPos.y += moveDir.y * speed;
+    
+    if(isAtk) {
+        atkProgress += 0.25;
+        if(atkProgress > Math.PI) { isAtk = false; atkProgress = 0; }
     }
 
-    if (isAttacking) {
-        attackFrame += 0.2;
-        if (attackFrame > Math.PI) {
-            attackFrame = 0;
-            isAttacking = false;
-        }
-    }
-
+    socket.emit('move', { x: myPos.x, y: myPos.y, angle: myPos.angle, atk: isAtk, hand: lastHand, atkP: atkProgress });
     draw();
     requestAnimationFrame(update);
 }
 
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+    ctx.fillStyle = "#2d4c2d"; // Зеленая трава
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     ctx.save();
-    // ПРИМЕНЯЕМ ОТДАЛЕНИЕ КАМЕРЫ
     ctx.translate(canvas.width/2, canvas.height/2);
-    ctx.scale(zoom, zoom);
+    ctx.scale(viewScale, viewScale);
     ctx.translate(-myPos.x, -myPos.y);
 
-    // Сетка
-    ctx.strokeStyle = "#2a2a2a";
-    ctx.lineWidth = 2;
-    for (let x = myPos.x - 2000; x < myPos.x + 2000; x += 150) {
-        ctx.beginPath(); ctx.moveTo(x, myPos.y - 2000); ctx.lineTo(x, myPos.y + 2000); ctx.stroke();
-    }
-    for (let y = myPos.y - 2000; y < myPos.y + 2000; y += 150) {
-        ctx.beginPath(); ctx.moveTo(myPos.x - 2000, y); ctx.lineTo(myPos.x + 2000, y); ctx.stroke();
-    }
+    // Рисуем объекты окружения
+    objects.forEach(obj => {
+        if (obj.type === 'tree') {
+            ctx.fillStyle = "#1a2e1a"; ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.size, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#254125"; ctx.beginPath(); ctx.arc(obj.x-5, obj.y-5, obj.size*0.7, 0, Math.PI*2); ctx.fill();
+        } else if (obj.type === 'rock') {
+            ctx.fillStyle = "#555"; ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.size*0.5, 0, Math.PI*2); ctx.fill();
+        } else {
+            ctx.fillStyle = "#3d663d"; ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.size*0.4, 0, Math.PI*2); ctx.fill();
+        }
+    });
 
-    // Рисуем всех
-    for (let id in players) {
-        const p = players[id];
-        // Если это другой игрок, проверяем его атаку (сервер должен присылать флаг атаки)
-        drawPlayer(p.x, p.y, p.color, p.angle, id === myId ? attackFrame : 0);
-    }
+    // Отрисовка игрока (себя)
+    drawChar(myPos.x, myPos.y, myPos.color, myPos.angle, isAtk, lastHand, atkProgress);
 
     ctx.restore();
 }
 
-function drawPlayer(x, y, color, angle, atk) {
+function drawChar(x, y, color, angle, attacking, hand, progress) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
 
-    // Смещение рук при атаке
-    let handOffset = Math.sin(atk) * 30;
+    let leftAtk = (attacking && hand === 'left') ? Math.sin(progress)*25 : 0;
+    let rightAtk = (attacking && hand === 'right') ? Math.sin(progress)*25 : 0;
 
-    // РУКИ
+    ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 3;
+    
+    // Руки
     ctx.fillStyle = color;
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 2;
-    
-    // Левая рука
-    ctx.beginPath();
-    ctx.arc(20 + handOffset, -25, 10, 0, Math.PI*2);
-    ctx.fill(); ctx.stroke();
-    
-    // Правая рука
-    ctx.beginPath();
-    ctx.arc(20 + handOffset, 25, 10, 0, Math.PI*2);
-    ctx.fill(); ctx.stroke();
+    // Левая
+    ctx.beginPath(); ctx.arc(20 + leftAtk, -25, 12, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    // Правая
+    ctx.beginPath(); ctx.arc(20 + rightAtk, 25, 12, 0, Math.PI*2); ctx.fill(); ctx.stroke();
 
-    // ТЕЛО
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(0, 0, 30, 0, Math.PI*2);
-    ctx.fill();
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    // Тело
+    ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "white"; ctx.stroke();
 
     ctx.restore();
 }

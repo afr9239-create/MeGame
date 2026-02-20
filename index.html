@@ -1,247 +1,189 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>War Castle: Dragon Era PVP</title>
+    <title>War Castle: Open World RPG</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { margin: 0; background: #0e1111; color: white; font-family: 'Verdana', sans-serif; overflow: hidden; touch-action: none; }
-        #game-container { width: 100vw; height: 100vh; overflow-y: auto; overflow-x: hidden; position: relative; scrollbar-width: none; display: none; }
-        #game-container::-webkit-scrollbar { display: none; }
-        canvas { display: block; background: #2d4c2d; width: 100%; height: auto; box-shadow: inset 0 0 100px #000; }
+        body { margin: 0; background: #222; overflow: hidden; font-family: sans-serif; touch-action: none; }
+        canvas { display: block; }
 
-        /* ИНТЕРФЕЙС */
-        #menu-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a2a6c, #b21f1f, #fdbb2d); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-        .btn-battle { background: linear-gradient(45deg, #ff00ff, #00ffff); border: none; color: white; padding: 20px 60px; font-size: 28px; font-weight: bold; border-radius: 15px; cursor: pointer; text-shadow: 2px 2px 4px #000; box-shadow: 0 5px 25px rgba(255,0,255,0.6); transition: 0.3s; }
-        .btn-battle:active { transform: scale(0.9); }
+        /* Стили джойстика */
+        #joystick-container {
+            position: fixed; bottom: 40px; left: 40px;
+            width: 120px; height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.3);
+            touch-action: none; z-index: 100;
+        }
+        #joystick-knob {
+            position: absolute; top: 35px; left: 35px;
+            width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%; box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
 
-        #ui { position: fixed; bottom: 10px; left: 0; width: 100%; display: none; justify-content: center; gap: 4px; z-index: 10; padding: 5px; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); }
-        .shop-item { background: #222; border: 2px solid #444; width: 50px; height: 70px; text-align: center; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-around; align-items: center; font-size: 9px; position: relative; }
-        .shop-item b { color: #ffd700; }
-        .dragon-btn { border-color: #ff4500; background: #410; }
-
-        .stats { position: fixed; top: 0; width: 100%; display: none; justify-content: space-between; padding: 10px; box-sizing: border-box; z-index: 10; pointer-events: none; }
-        .stat-card { background: rgba(0,0,0,0.8); padding: 8px 15px; border-radius: 10px; border-bottom: 3px solid #00f; min-width: 100px; }
-        .red-side { border-bottom: 3px solid #f00; text-align: right; }
-        
-        #drag-icon { position: fixed; pointer-events: none; z-index: 100; font-size: 30px; display: none; transform: translate(-50%, -50%); filter: drop-shadow(0 0 10px #fff); }
+        #ui-overlay {
+            position: fixed; top: 10px; left: 10px;
+            color: white; pointer-events: none; z-index: 10;
+            text-shadow: 1px 1px 2px #000;
+        }
     </style>
 </head>
 <body>
 
-<div id="menu-screen">
-    <h1 style="font-size: 60px; margin: 0; text-shadow: 4px 4px 0 #000;">WAR CASTLE</h1>
-    <p style="letter-spacing: 10px;">ULTIMATE PVP</p><br>
-    <button class="btn-battle" onclick="findMatch()">В БОЙ</button>
-    <div id="search-status" style="margin-top:20px; display:none; color:#0f0;">ПОИСК ДОСТОЙНОГО ВРАГА...</div>
+<div id="ui-overlay">
+    <div>Мир: <span id="coords">0, 0</span></div>
+    <div id="player-count">Игроков в сети: 1</div>
 </div>
 
-<div class="stats" id="stats-ui">
-    <div class="stat-card">💰<span id="gold1">0</span><br>🏰<span id="hp1">500</span></div>
-    <div class="stat-card red-side">💰<span id="gold2">0</span><br>🏰<span id="hp2">500</span></div>
+<div id="joystick-container">
+    <div id="joystick-knob"></div>
 </div>
 
-<div id="ui">
-    <div class="shop-item" ontouchstart="startDrag('barracks', 50)"><span>🏠</span><b>50</b></div>
-    <div class="shop-item" ontouchstart="startDrag('archers', 150)"><span>🏹</span><b>150</b></div>
-    <div class="shop-item" ontouchstart="startDrag('mage', 300)"><span>🧙</span><b>300</b></div>
-    <div class="shop-item dragon-btn" ontouchstart="startDrag('dragon', 500)"><span>🐲</span><b>500</b></div>
-    <div class="shop-item" ontouchstart="startDrag('wall', 200)"><span>🧱</span><b>200</b></div>
-    <div class="shop-item" ontouchstart="startDrag('turret', 70)"><span>🛡️</span><b>70</b></div>
-    <div class="shop-item" ontouchstart="startDrag('bomb', 200)"><span>💣</span><b>200</b></div>
-    <div class="shop-item" ontouchstart="startDrag('mine', 100)"><span>💎</span><b id="mine-cost-ui">100</b></div>
-</div>
-
-<div id="drag-icon"></div>
-<div id="game-container"><canvas id="gameCanvas"></canvas></div>
+<canvas id="gameCanvas"></canvas>
 
 <script>
-const socket = io("https://war-castle.onrender.com");
-let gameStarted = false, lastTime = Date.now();
-const canvas = document.getElementById("gameCanvas"), ctx = canvas.getContext("2d");
-const container = document.getElementById("game-container"), dragIcon = document.getElementById("drag-icon");
+const socket = io("https://war-castle.onrender.com"); // Твой сервер на Render
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-let gameState = {
-    p1: { gold: 150, hp: 600, income: 4, mines: 0 }, 
-    p2: { gold: 150, hp: 600, income: 4, mines: 0 }, 
-    units: [], buildings: [], projectiles: [], vfx: []
-};
+// Параметры игрока
+let myId = null;
+const players = {}; 
+let myPos = { x: 0, y: 0, color: '#' + Math.floor(Math.random()*16777215).toString(16) };
+let moveDir = { x: 0, y: 0 };
+const speed = 5;
 
-const decorations = [];
-const clouds = [];
+// Джойстик
+const joystick = document.getElementById("joystick-container");
+const knob = document.getElementById("joystick-knob");
+let joystickActive = false;
 
-function initGame() {
-    resize();
-    for(let i=0; i<60; i++) decorations.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: 2+Math.random()*5, t: Math.random()>0.5?'stone':'grass' });
-    for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: 0.2+Math.random()*0.5 });
-    setTimeout(() => container.scrollTop = canvas.height, 200);
-    update();
-}
-
-function findMatch() { 
-    document.getElementById('search-status').style.display = 'block';
-    socket.emit('findMatch'); 
-}
-
-socket.on('matchFound', () => { 
-    gameStarted = true;
-    document.getElementById('menu-screen').style.display = 'none';
-    document.getElementById('ui').style.display = 'flex';
-    document.getElementById('stats-ui').style.display = 'flex';
-    container.style.display = 'block';
-    initGame();
+// --- СЕТЕВАЯ ЛОГИКА ---
+socket.on('connect', () => {
+    myId = socket.id;
+    socket.emit('initPlayer', { x: 0, y: 0, color: myPos.color });
 });
 
-socket.on('enemySpawn', (d) => {
-    let w = d.type==='wall'?80:40;
-    gameState.buildings.push({ ...d, player: 2, x: canvas.width-d.x-w, y: canvas.height-d.y-40, lastSpawn: Date.now(), lastShot: 0 });
+socket.on('updatePlayers', (serverPlayers) => {
+    // Обновляем список всех игроков
+    for (let id in serverPlayers) {
+        players[id] = serverPlayers[id];
+    }
+    // Удаляем ушедших
+    for (let id in players) {
+        if (!serverPlayers[id]) delete players[id];
+    }
+    document.getElementById('player-count').innerText = `Игроков в сети: ${Object.keys(players).length}`;
 });
 
-socket.on('syncEnemyResources', (d) => { gameState.p2.gold = d.gold; gameState.p2.hp = d.hp; });
+// --- УПРАВЛЕНИЕ (ДЖОЙСТИК) ---
+joystick.addEventListener('touchstart', (e) => { joystickActive = true; moveJoystick(e); });
+window.addEventListener('touchmove', (e) => { if(joystickActive) moveJoystick(e); });
+window.addEventListener('touchend', () => {
+    joystickActive = false;
+    knob.style.transform = `translate(0px, 0px)`;
+    moveDir = { x: 0, y: 0 };
+});
 
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight * 3; }
+function moveJoystick(e) {
+    const touch = e.touches[0];
+    const rect = joystick.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    let dx = touch.clientX - centerX;
+    let dy = touch.clientY - centerY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const maxDist = 40;
 
-let dragging = null;
-function startDrag(type, cost) {
-    let actual = type==='mine' ? 100+(gameState.p1.mines*100) : cost;
-    if (gameState.p1.gold >= actual) {
-        dragging = { type, cost: actual };
-        dragIcon.style.display = "block";
-        dragIcon.innerHTML = type==='dragon'?'🐲':(type==='mage'?'🧙':'📦');
+    if (dist > maxDist) {
+        dx *= maxDist / dist;
+        dy *= maxDist / dist;
     }
+
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    
+    // Направление движения
+    moveDir.x = dx / maxDist;
+    moveDir.y = dy / maxDist;
 }
 
-window.ontouchmove = (e) => { if(dragging){ dragIcon.style.left=e.touches[0].clientX+"px"; dragIcon.style.top=e.touches[0].clientY+"px"; }};
-window.ontouchend = (e) => {
-    if(!dragging) return;
-    let touch = e.changedTouches[0], cY = touch.clientY + container.scrollTop, cX = touch.clientX;
-    if (cY > canvas.height/2 && cY < canvas.height-80) {
-        gameState.p1.gold -= dragging.cost;
-        let hp = dragging.type==='wall'?1500:500;
-        socket.emit('spawnUnit', { type: dragging.type, x: cX-20, y: cY-20, hp });
-        if(dragging.type==='mine') gameState.p1.mines++;
-        gameState.buildings.push({ type: dragging.type, player: 1, x: cX-20, y: cY-20, hp, maxHp: hp, lastSpawn: Date.now(), lastShot: 0 });
-    }
-    dragging = null; dragIcon.style.display="none";
-};
+// --- ЦИКЛ ИГРЫ ---
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.onresize = resize;
+resize();
 
 function update() {
-    if(!gameStarted) return;
-    let now = Date.now(), dt = (now - lastTime)/1000; lastTime = now;
-    gameState.p1.gold += (gameState.p1.income + (gameState.p1.mines*5)) * dt;
-    socket.emit('syncResources', { gold: gameState.p1.gold, hp: gameState.p1.hp });
-
-    document.getElementById("gold1").innerText = Math.floor(gameState.p1.gold);
-    document.getElementById("gold2").innerText = Math.floor(gameState.p2.gold);
-    document.getElementById("hp1").innerText = Math.floor(gameState.p1.hp);
-    document.getElementById("hp2").innerText = Math.floor(gameState.p2.hp);
-
-    // Юниты
-    gameState.units.forEach((u, i) => {
-        let range = u.type==='archer'?180:(u.type==='mage'?220:50);
-        let target = null, minDist = range;
+    if (moveDir.x !== 0 || moveDir.y !== 0) {
+        myPos.x += moveDir.x * speed;
+        myPos.y += moveDir.y * speed;
         
-        gameState.buildings.concat(gameState.units).forEach(obj => {
-            if (obj.player !== u.player && (u.type !== 'dragon' || obj.type !== 'wall')) {
-                let d = Math.hypot(obj.x-u.x, obj.y-u.y);
-                if (d < minDist) { minDist = d; target = obj; }
-            }
-        });
-
-        if (target) {
-            if (Date.now() - (u.lastShot||0) > (u.type==='mage'?2000:1500)) {
-                gameState.projectiles.push({ x: u.x, y: u.y, target, type: u.type==='mage'?'lightning':(u.type==='dragon'?'fire':'arrow'), player: u.player });
-                u.lastShot = Date.now();
-            }
-        } else {
-            u.y += u.speed;
-        }
-
-        if (u.y < 60 && u.player === 1) { gameState.p2.hp -= 50; u.hp = 0; }
-        if (u.y > canvas.height-60 && u.player === 2) { gameState.p1.hp -= 50; u.hp = 0; }
-        if (u.hp <= 0) gameState.units.splice(i,1);
-    });
-
-    // Здания (Спавн)
-    gameState.buildings.forEach(b => {
-        let spawnCD = b.type==='archers'?5000:7000;
-        if ((b.type==='barracks'||b.type==='archers'||b.type==='mage'||b.type==='dragon') && now - b.lastSpawn > spawnCD) {
-            let ut = b.type==='archers'?'archer':(b.type==='mage'?'mage':(b.type==='dragon'?'dragon':'knight'));
-            let hp = ut==='dragon'?800:(ut==='knight'?150:60);
-            gameState.units.push({ player: b.player, type: ut, x: b.x+20, y: b.y+20, hp, maxHp: hp, speed: b.player===1?-1:1 });
-            b.lastSpawn = now;
-        }
-        // Турели
-        let sCD = b.type==='bomb'?3000:1000;
-        if ((b.type==='turret'||b.type==='bomb') && now - b.lastShot > sCD) {
-            let t = gameState.units.find(u => u.player!==b.player && Math.hypot(u.x-b.x, u.y-b.y)<350);
-            if(t) { gameState.projectiles.push({ x: b.x+20, y: b.y+20, target: t, type: b.type, player: b.player }); b.lastShot = now; }
-        }
-    });
-
-    // Снаряды
-    gameState.projectiles.forEach((p, pi) => {
-        let dx = p.target.x-p.x, dy = p.target.y-p.y, dist = Math.hypot(dx,dy);
-        if (dist < 10) {
-            if (p.type==='fire'||p.type==='bomb') {
-                gameState.vfx.push({ x: p.x, y: p.y, time: now, t: 'exp' });
-                gameState.units.forEach(u => { if(u.player!==p.player && Math.hypot(u.x-p.x, u.y-p.y)<100) u.hp -= 90; });
-            } else if (p.type==='lightning') {
-                p.target.hp -= 40; // Цепная молния (упрощенно)
-            } else p.target.hp -= 30;
-            gameState.projectiles.splice(pi,1);
-        } else { p.x += dx/dist*10; p.y += dy/dist*10; }
-    });
-
+        // Отправляем свои координаты на сервер
+        socket.emit('move', { x: myPos.x, y: myPos.y });
+        document.getElementById('coords').innerText = `${Math.floor(myPos.x)}, ${Math.floor(myPos.y)}`;
+    }
+    
     draw();
     requestAnimationFrame(update);
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#2d4c2d"; ctx.fillRect(0,0, canvas.width, canvas.height);
     
-    // Декор
-    decorations.forEach(d => { ctx.fillStyle = d.t==='stone'?'#666':'#1d3c1d'; ctx.beginPath(); ctx.arc(d.x, d.y, d.s, 0, Math.PI*2); ctx.fill(); });
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
 
-    // Зоны
-    ctx.fillStyle = "rgba(0,0,255,0.05)"; ctx.fillRect(0, canvas.height/2, canvas.width, canvas.height/2);
-    ctx.fillStyle = "rgba(255,0,0,0.05)"; ctx.fillRect(0, 0, canvas.width, canvas.height/2);
+    // РИСУЕМ СЕТКУ (фон движется относительно игрока)
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 1;
+    const gridSize = 100;
+    const offsetX = -myPos.x % gridSize;
+    const offsetY = -myPos.y % gridSize;
 
-    gameState.buildings.forEach(b => {
-        let c = b.player===1?'#44f':'#f44';
-        ctx.save();
-        ctx.shadowBlur = 15; ctx.shadowColor = "black";
-        ctx.fillStyle = c;
-        if(b.type==='wall') ctx.fillRect(b.x, b.y, 80, 20);
-        else if(b.type==='mine') { ctx.fillStyle="#ffd700"; ctx.beginPath(); ctx.moveTo(b.x+20,b.y); ctx.lineTo(b.x+40,b.y+20); ctx.lineTo(b.x+20,b.y+40); ctx.lineTo(b.x,b.y+20); ctx.fill(); }
-        else if(b.type==='turret') { ctx.fillRect(b.x+10, b.y+10, 20, 20); ctx.fillStyle="#333"; ctx.fillRect(b.x+15, b.y-10, 10, 25); }
-        else { ctx.fillRect(b.x, b.y, 40, 40); ctx.fillStyle="white"; ctx.fillText(b.type[0].toUpperCase(), b.x+15, b.y+25); }
-        ctx.restore();
+    for (let x = offsetX; x < canvas.width; x += gridSize) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = offsetY; y < canvas.height; y += gridSize) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+
+    // РИСУЕМ ДРУГИХ ИГРОКОВ
+    for (let id in players) {
+        if (id === myId) continue;
+        const p = players[id];
+        // Позиция игрока относительно меня
+        const relX = centerX + (p.x - myPos.x);
+        const relY = centerY + (p.y - myPos.y);
         
-        ctx.fillStyle="black"; ctx.fillRect(b.x, b.y-10, 40, 5);
-        ctx.fillStyle=b.player===1?"#00f":"#f00"; ctx.fillRect(b.x, b.y-10, (b.hp/b.maxHp)*40, 5);
-    });
+        drawPlayer(relX, relY, p.color, false);
+    }
 
-    gameState.units.forEach(u => {
-        let c = u.player===1?'#44f':'#f44';
-        ctx.fillStyle = c;
-        ctx.beginPath();
-        if(u.type==='dragon') { ctx.arc(u.x, u.y, 25, 0, Math.PI*2); ctx.fillText("🐲", u.x-10, u.y+5); }
-        else if(u.type==='archer') { ctx.moveTo(u.x, u.y-15); ctx.lineTo(u.x+12, u.y+10); ctx.lineTo(u.x-12, u.y+10); ctx.fill(); }
-        else if(u.type==='mage') { ctx.arc(u.x, u.y, 12, 0, Math.PI*2); ctx.stroke(); ctx.fillText("✨", u.x-5, u.y+5); }
-        else ctx.arc(u.x, u.y, 15, 0, Math.PI*2);
-        ctx.fill();
-        
-        ctx.fillStyle="black"; ctx.fillRect(u.x-15, u.y-25, 30, 4);
-        ctx.fillStyle=u.player===1?"#44f":"#f44"; ctx.fillRect(u.x-15, u.y-25, (u.hp/u.maxHp)*30, 4);
-    });
-
-    gameState.projectiles.forEach(p => {
-        ctx.fillStyle = p.type==='fire'?'#ff4500':(p.type==='lightning'?'#0ff':'#fff');
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.type==='fire'?10:4, 0, Math.PI*2); ctx.fill();
-    });
+    // РИСУЕМ СЕБЯ (всегда в центре)
+    drawPlayer(centerX, centerY, myPos.color, true);
 }
+
+function drawPlayer(x, y, color, isMe) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = isMe ? 4 : 2;
+    ctx.stroke();
+    
+    if (isMe) {
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        ctx.fillText("ВЫ", x, y - 35);
+    }
+}
+
+update();
 </script>
 </body>
 </html>

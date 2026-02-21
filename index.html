@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>War Castle: Hammer Arena</title>
+    <title>War Castle: Hammer & Resources</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
@@ -12,166 +12,180 @@
             position: fixed; top: 10px; left: 10px; color: white; 
             text-shadow: 2px 2px 2px rgba(0,0,0,0.8); pointer-events: none; z-index: 10;
         }
-        .info-box { background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 20px; margin-bottom: 5px; border: 1px solid rgba(255,255,255,0.2); }
+        .info-box { background: rgba(0,0,0,0.6); padding: 5px 12px; border-radius: 15px; margin-bottom: 5px; border: 1px solid rgba(255,255,255,0.2); font-size: 14px; }
+
+        /* Компактный инвентарь */
+        #inventory {
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 10px; border: 2px solid #555; pointer-events: none;
+        }
+        .inv-slot { display: flex; align-items: center; gap: 5px; color: white; font-weight: bold; }
+        .inv-icon { width: 20px; height: 20px; border-radius: 3px; }
 
         #minimap {
-            position: fixed; top: 10px; right: 10px; width: 120px; height: 120px;
+            position: fixed; top: 10px; right: 10px; width: 100px; height: 100px;
             background: rgba(0,0,0,0.5); border: 2px solid rgba(255,255,255,0.5); border-radius: 50%;
         }
 
         #joystick-ui {
-            position: fixed; bottom: 40px; left: 40px; width: 120px; height: 120px;
+            position: fixed; bottom: 30px; left: 30px; width: 100px; height: 100px;
             background: rgba(255, 255, 255, 0.1); border-radius: 50%; border: 2px solid rgba(255,255,255,0.2);
         }
         #knob {
-            position: absolute; top: 35px; left: 35px; width: 50px; height: 50px;
-            background: white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            position: absolute; top: 30px; left: 30px; width: 40px; height: 40px;
+            background: white; border-radius: 50%;
         }
 
         #attack-btn {
-            position: fixed; bottom: 50px; right: 50px; width: 110px; height: 110px;
+            position: fixed; bottom: 30px; right: 30px; width: 90px; height: 90px;
             background: radial-gradient(circle, #666, #222); border: 4px solid #eee; border-radius: 50%;
             color: white; font-weight: bold; display: flex; align-items: center; justify-content: center;
-            user-select: none; -webkit-user-select: none; box-shadow: 0 0 20px rgba(255,255,255,0.2);
+            user-select: none; z-index: 11;
         }
-        #attack-btn:active { transform: scale(0.9); background: #444; }
+
+        /* Кнопка Fullscreen */
+        #fs-btn {
+            position: fixed; bottom: 130px; right: 30px; width: 40px; height: 40px;
+            background: rgba(255,255,255,0.2); border: 1px solid white; border-radius: 5px;
+            color: white; display: flex; align-items: center; justify-content: center; font-size: 20px;
+        }
     </style>
 </head>
 <body>
 
 <div id="ui-container">
-    <div class="info-box">Рыцарей в сети: <span id="p-count">0</span></div>
+    <div class="info-box">Рыцари: <span id="p-count">0</span></div>
 </div>
 
+<div id="inventory">
+    <div class="inv-slot"><div class="inv-icon" style="background: #795548;"></div> <span id="inv-wood">0</span></div>
+    <div class="inv-slot"><div class="inv-icon" style="background: #9e9e9e;"></div> <span id="inv-stone">0</span></div>
+</div>
+
+<div id="fs-btn">⛶</div>
 <canvas id="minimap"></canvas>
 <div id="joystick-ui"><div id="knob"></div></div>
-<div id="attack-btn">УДАР МОЛОТОМ</div>
+<div id="attack-btn">УДАР</div>
 <canvas id="gameCanvas"></canvas>
 
 <script>
 const socket = io("https://war-castle.onrender.com"); 
-
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const mCanvas = document.getElementById("minimap");
 const mCtx = mCanvas.getContext("2d");
 
-const WORLD_RADIUS = 1000;
+const WORLD_RADIUS = 1500;
 let players = {};
+let objects = []; // Деревья и камни
 let camX = 0, camY = 0;
+let inventory = { wood: 0, stone: 0 };
 
-let myPos = { 
-    x: 0, 
-    y: 0, 
-    color: `hsl(${Math.random()*360}, 70%, 60%)`, 
-    angle: 0, 
-    hp: 100,
-    atk: false,
-    atkP: 0 // Фаза анимации удара
+// Инициализация объектов (статично для примера, лучше делать на сервере)
+function initObjects() {
+    for(let i=0; i<40; i++) {
+        let angle = Math.random() * Math.PI * 2;
+        let dist = Math.random() * (WORLD_RADIUS - 100);
+        objects.push({
+            id: i,
+            x: Math.cos(angle) * dist,
+            y: Math.sin(angle) * dist,
+            type: Math.random() > 0.5 ? 'tree' : 'stone',
+            hp: 100,
+            size: 40 + Math.random() * 30
+        });
+    }
+}
+initObjects();
+
+let myPos = { x: 0, y: 0, color: `hsl(${Math.random()*360}, 70%, 60%)`, angle: 0, hp: 100, atk: false, atkP: 0 };
+
+// Полноэкранный режим
+document.getElementById('fs-btn').onclick = () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
 };
 
-document.addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(e => console.log(e));
-    }
-}, { once: true });
-
 let moveDir = { x: 0, y: 0 };
-const speed = 6;
+const speed = 5;
 
-// Логика удара молотом
 const atkBtn = document.getElementById("attack-btn");
 atkBtn.addEventListener('touchstart', (e) => {
     e.preventDefault();
     if (!myPos.atk) {
         myPos.atk = true;
-        myPos.atkP = -1; // Начинаем с замаха
-        checkMeleeHit();
+        myPos.atkP = -1;
+        checkHit();
     }
 });
 
-function checkMeleeHit() {
-    // Проверка попадания по врагам в небольшом радиусе перед игроком
-    for (let id in players) {
-        if (id === socket.id) continue;
-        let enemy = players[id];
-        let dx = enemy.x - myPos.x;
-        let dy = enemy.y - myPos.y;
+function checkHit() {
+    // Удар по объектам (деревья/камни)
+    objects.forEach(obj => {
+        let dx = obj.x - myPos.x;
+        let dy = obj.y - myPos.y;
         let dist = Math.sqrt(dx*dx + dy*dy);
-        
-        // Угол между направлением игрока и врагом
-        let angleToEnemy = Math.atan2(dy, dx);
-        let diffAngle = Math.abs(myPos.angle - angleToEnemy);
-        
-        if (dist < 100 && (diffAngle < 0.8 || diffAngle > Math.PI*2 - 0.8)) {
-            socket.emit('hit', { targetId: id, damage: 15 });
+        if (dist < 120) {
+            obj.hp -= 25;
+            if (obj.hp <= 0) {
+                if (obj.type === 'tree') inventory.wood += 5;
+                else inventory.stone += 5;
+                obj.hp = 100; // Респаун (заглушка)
+                obj.x = (Math.random()-0.5) * WORLD_RADIUS * 1.5;
+                obj.y = (Math.random()-0.5) * WORLD_RADIUS * 1.5;
+                updateInv();
+            }
         }
-    }
+    });
 }
 
-// Джойстик (без изменений)
+function updateInv() {
+    document.getElementById('inv-wood').innerText = inventory.wood;
+    document.getElementById('inv-stone').innerText = inventory.stone;
+}
+
+// Джойстик
 let joyTouchId = null;
 const joy = document.getElementById("joystick-ui");
 const knob = document.getElementById("knob");
-
 window.addEventListener('touchstart', (e) => {
     for(let t of e.changedTouches) {
         let r = joy.getBoundingClientRect();
-        if(t.clientX > r.left && t.clientX < r.right && t.clientY > r.top && t.clientY < r.bottom) {
-            joyTouchId = t.identifier;
-        }
+        if(t.clientX > r.left && t.clientX < r.right && t.clientY > r.top && t.clientY < r.bottom) joyTouchId = t.identifier;
     }
 });
-
 window.addEventListener('touchmove', (e) => {
     for(let t of e.touches) {
         if(t.identifier === joyTouchId) {
             let r = joy.getBoundingClientRect();
-            let dx = t.clientX - (r.left + r.width/2);
-            let dy = t.clientY - (r.top + r.height/2);
+            let dx = t.clientX - (r.left + 50), dy = t.clientY - (r.top + 50);
             let dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > 45) { dx *= 45/dist; dy *= 45/dist; }
+            if(dist > 40) { dx *= 40/dist; dy *= 40/dist; }
             knob.style.transform = `translate(${dx}px, ${dy}px)`;
-            moveDir = { x: dx/45, y: dy/45 };
+            moveDir = { x: dx/40, y: dy/40 };
             myPos.angle = Math.atan2(dy, dx);
         }
     }
 }, {passive: false});
-
 window.addEventListener('touchend', (e) => {
-    for(let t of e.changedTouches) {
-        if(t.identifier === joyTouchId) {
-            joyTouchId = null;
-            knob.style.transform = `translate(0,0)`;
-            moveDir = { x: 0, y: 0 };
-        }
-    }
+    for(let t of e.changedTouches) if(t.identifier === joyTouchId) { joyTouchId = null; knob.style.transform = `translate(0,0)`; moveDir = { x: 0, y: 0 }; }
 });
 
-socket.on('update', (serverPlayers) => {
-    players = serverPlayers;
-    if(players[socket.id]) myPos.hp = players[socket.id].hp;
-    document.getElementById('p-count').innerText = Object.keys(players).length;
-});
+socket.on('update', (serverPlayers) => { players = serverPlayers; document.getElementById('p-count').innerText = Object.keys(players).length; });
 
 function update() {
-    let nextX = myPos.x + moveDir.x * speed;
-    let nextY = myPos.y + moveDir.y * speed;
+    let nx = myPos.x + moveDir.x * speed, ny = myPos.y + moveDir.y * speed;
+    
+    // Коллизия с объектами
+    let canMove = true;
+    objects.forEach(obj => {
+        let dx = obj.x - nx, dy = obj.y - ny;
+        if (Math.sqrt(dx*dx + dy*dy) < obj.size) canMove = false;
+    });
 
-    let distFromCenter = Math.sqrt(nextX*nextX + nextY*nextY);
-    if(distFromCenter < WORLD_RADIUS - 35) {
-        myPos.x = nextX;
-        myPos.y = nextY;
-    }
+    if(canMove && Math.sqrt(nx*nx + ny*ny) < WORLD_RADIUS - 40) { myPos.x = nx; myPos.y = ny; }
 
-    // Анимация молота
-    if (myPos.atk) {
-        myPos.atkP += 0.15;
-        if (myPos.atkP > 1) {
-            myPos.atk = false;
-            myPos.atkP = 0;
-        }
-    }
+    if (myPos.atk) { myPos.atkP += 0.2; if (myPos.atkP > 1) { myPos.atk = false; myPos.atkP = 0; } }
 
     camX += (myPos.x - camX) * 0.1;
     camY += (myPos.y - camY) * 0.1;
@@ -182,26 +196,29 @@ function update() {
 }
 
 function draw() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    ctx.fillStyle = "#1a1a1a"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    ctx.translate(canvas.width/2 - camX, canvas.height/2 - camY);
+    // КАМЕРА ОТДАЛЕНА (Масштаб 0.4 вместо 1.0)
+    ctx.translate(canvas.width/2, canvas.height/2);
+    ctx.scale(0.4, 0.4); 
+    ctx.translate(-camX, -camY);
 
-    // Рисуем круглую арену
-    ctx.beginPath();
-    ctx.arc(0, 0, WORLD_RADIUS, 0, Math.PI*2);
-    ctx.fillStyle = "#3a5a3a";
-    ctx.fill();
-    ctx.strokeStyle = "#222";
-    ctx.lineWidth = 15;
-    ctx.stroke();
+    // Арена
+    ctx.beginPath(); ctx.arc(0, 0, WORLD_RADIUS, 0, Math.PI*2);
+    ctx.fillStyle = "#3a5a3a"; ctx.fill();
 
-    for(let id in players) {
-        drawPlayer(players[id], id === socket.id);
-    }
+    // Объекты (Деревья и камни)
+    objects.forEach(obj => {
+        ctx.fillStyle = obj.type === 'tree' ? "#2e7d32" : "#757575";
+        ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.size, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 5; ctx.stroke();
+        // HP объектов
+        ctx.fillStyle = "red"; ctx.fillRect(obj.x-20, obj.y - obj.size - 10, (obj.hp/100)*40, 5);
+    });
+
+    for(let id in players) drawPlayer(players[id], id === socket.id);
 
     ctx.restore();
     drawMinimap();
@@ -210,60 +227,33 @@ function draw() {
 function drawPlayer(p, isMe) {
     ctx.save();
     ctx.translate(p.x, p.y);
-    
-    // HP Bar
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(-40, -65, 80, 8);
-    ctx.fillStyle = p.hp > 30 ? "#2ecc71" : "#e74c3c";
-    ctx.fillRect(-40, -65, (p.hp/100)*80, 8);
-
+    ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-40, -80, 80, 10);
+    ctx.fillStyle = "#2ecc71"; ctx.fillRect(-40, -80, (p.hp/100)*80, 10);
     ctx.rotate(p.angle);
-
-    // --- РИСУЕМ МОЛОТ ---
+    
+    // Молот
     ctx.save();
-    // Анимация замаха: отклонение назад, потом резкий удар вперед
-    let swingAngle = p.atk ? Math.sin(p.atkP * Math.PI) * 1.5 : 0;
-    ctx.rotate(swingAngle);
-
-    // Рукоять
-    ctx.fillStyle = "#5d4037";
-    ctx.fillRect(20, 15, 40, 6);
-    // Боек (голова молота)
-    ctx.fillStyle = "#757575";
-    ctx.fillRect(55, 0, 20, 36); 
-    ctx.strokeStyle = "#444";
-    ctx.strokeRect(55, 0, 20, 36);
+    let swing = p.atk ? Math.sin(p.atkP * Math.PI) * 1.5 : 0;
+    ctx.rotate(swing);
+    ctx.fillStyle = "#5d4037"; ctx.fillRect(20, 15, 50, 8); // Ручка
+    ctx.fillStyle = "#444"; ctx.fillRect(60, -5, 25, 45); // Голова
     ctx.restore();
 
-    // Тело игрока
-    ctx.fillStyle = p.color;
-    ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = isMe ? "white" : "black";
-    ctx.lineWidth = 3; ctx.stroke();
-
-    // Глаза
-    ctx.fillStyle = "white";
-    ctx.beginPath(); ctx.arc(15, -12, 6, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(15, 12, 6, 0, Math.PI*2); ctx.fill();
-
+    ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(0, 0, 45, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = isMe ? "white" : "black"; ctx.lineWidth = 5; ctx.stroke();
     ctx.restore();
 }
 
 function drawMinimap() {
-    mCanvas.width = 120; mCanvas.height = 120;
-    mCtx.clearRect(0,0,120,120);
-    mCtx.fillStyle = "rgba(255,255,255,0.1)";
-    mCtx.beginPath(); mCtx.arc(60, 60, 60, 0, Math.PI*2); mCtx.fill();
-
+    mCanvas.width = 100; mCanvas.height = 100;
+    mCtx.fillStyle = "rgba(255,255,255,0.1)"; mCtx.beginPath(); mCtx.arc(50, 50, 50, 0, Math.PI*2); mCtx.fill();
     for(let id in players) {
         let p = players[id];
-        let mx = (p.x / (WORLD_RADIUS*2)) * 120 + 60;
-        let my = (p.y / (WORLD_RADIUS*2)) * 120 + 60;
-        mCtx.fillStyle = (id === socket.id) ? "#fff" : "#f00";
-        mCtx.beginPath(); mCtx.arc(mx, my, 4, 0, Math.PI*2); mCtx.fill();
+        let mx = (p.x / WORLD_RADIUS) * 50 + 50, my = (p.y / WORLD_RADIUS) * 50 + 50;
+        mCtx.fillStyle = (id === socket.id) ? "white" : "red";
+        mCtx.beginPath(); mCtx.arc(mx, my, 3, 0, Math.PI*2); mCtx.fill();
     }
 }
-
 update();
 </script>
 </body>

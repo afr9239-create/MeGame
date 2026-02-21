@@ -1,43 +1,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>War Castle: Smooth Multiplayer</title>
+    <title>War Castle: Grand Arena</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { margin: 0; background: #1a1a1a; overflow: hidden; font-family: 'Segoe UI', sans-serif; touch-action: none; }
+        body { margin: 0; background: #050505; overflow: hidden; font-family: 'Verdana', sans-serif; touch-action: none; }
         canvas { display: block; }
+
+        /* Экран загрузки */
+        #loading-screen {
+            position: fixed; inset: 0; background: #0a0a0a; color: #4caf50;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .spinner { width: 60px; height: 60px; border: 4px solid #1a1a1a; border-top: 4px solid #4caf50; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         /* Компактный инвентарь */
         #inventory {
-            position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 15px; background: rgba(0,0,0,0.8); padding: 10px 20px; 
-            border-radius: 25px; border: 2px solid rgba(255,255,255,0.1); z-index: 100;
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 20px; background: rgba(10,10,10,0.9); padding: 12px 25px; 
+            border-radius: 15px; border: 1px solid #333; z-index: 100; pointer-events: none;
         }
-        .inv-slot { display: flex; align-items: center; gap: 8px; color: white; font-size: 18px; font-weight: bold; }
-        .inv-icon { width: 15px; height: 15px; border-radius: 50%; }
+        .inv-slot { display: flex; align-items: center; gap: 10px; color: white; font-size: 20px; font-weight: bold; }
 
-        #minimap-container {
-            position: fixed; top: 15px; right: 15px; width: 130px; height: 130px;
-            border-radius: 50%; border: 3px solid rgba(255,255,255,0.3); overflow: hidden; background: rgba(0,0,0,0.5);
+        /* Миникарта круглая */
+        #minimap-wrapper {
+            position: fixed; top: 20px; right: 20px; width: 140px; height: 140px;
+            border-radius: 50%; border: 2px solid #555; overflow: hidden; background: rgba(0,0,0,0.8);
         }
         #minimap { width: 100%; height: 100%; }
 
+        /* Управление */
         #joystick-ui {
-            position: fixed; bottom: 40px; left: 40px; width: 110px; height: 110px;
-            background: rgba(255, 255, 255, 0.05); border-radius: 50%; border: 2px solid rgba(255,255,255,0.1);
+            position: fixed; bottom: 50px; left: 50px; width: 120px; height: 120px;
+            background: rgba(255, 255, 255, 0.05); border-radius: 50%; border: 1px solid rgba(255,255,255,0.1);
         }
-        #knob { position: absolute; top: 35px; left: 35px; width: 40px; height: 40px; background: white; border-radius: 50%; }
+        #knob { position: absolute; top: 40px; left: 40px; width: 40px; height: 40px; background: white; border-radius: 50%; }
 
         #attack-btn {
-            position: fixed; bottom: 40px; right: 40px; width: 100px; height: 100px;
-            background: #444; border: 4px solid #fff; border-radius: 50%;
+            position: fixed; bottom: 50px; right: 50px; width: 110px; height: 110px;
+            background: #b71c1c; border: 4px solid #fff; border-radius: 50%;
             color: white; font-weight: bold; display: flex; align-items: center; justify-content: center;
-            user-select: none; z-index: 11; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            user-select: none; z-index: 11; font-size: 20px;
         }
 
         #fs-btn {
-            position: fixed; bottom: 150px; right: 45px; width: 45px; height: 45px;
+            position: fixed; bottom: 180px; right: 60px; width: 50px; height: 50px;
             background: rgba(255,255,255,0.1); border: 1px solid white; border-radius: 10px;
             color: white; display: flex; align-items: center; justify-content: center; font-size: 24px;
         }
@@ -45,13 +54,18 @@
 </head>
 <body>
 
+<div id="loading-screen">
+    <div class="spinner"></div>
+    <p>WAR CASTLE: ПОДГОТОВКА КАРТЫ...</p>
+</div>
+
 <div id="inventory">
-    <div class="inv-slot"><div class="inv-icon" style="background: #8d6e63;"></div> <span id="inv-wood">0</span></div>
-    <div class="inv-slot"><div class="inv-icon" style="background: #b0bec5;"></div> <span id="inv-stone">0</span></div>
+    <div class="inv-slot">🪵 <span id="inv-wood">0</span></div>
+    <div class="inv-slot">🪨 <span id="inv-stone">0</span></div>
 </div>
 
 <div id="fs-btn">⛶</div>
-<div id="minimap-container"><canvas id="minimap"></canvas></div>
+<div id="minimap-wrapper"><canvas id="minimap"></canvas></div>
 <div id="joystick-ui"><div id="knob"></div></div>
 <div id="attack-btn">УДАР</div>
 <canvas id="gameCanvas"></canvas>
@@ -63,170 +77,190 @@ const ctx = canvas.getContext("2d");
 const mCanvas = document.getElementById("minimap");
 const mCtx = mCanvas.getContext("2d");
 
-const WORLD_SIZE = 4000; // Квадратная карта
+// НАСТРОЙКИ
+const WORLD_SIZE = 7000; // Огромная карта
+const speed = 9; // Высокая скорость без скольжения
 let players = {};
-let renderPlayers = {}; // Для плавной интерполяции
-let staticObjects = []; 
+let renderPlayers = {};
+let staticObjects = [];
+let deco = [];
 
-// Генерация ресурсов один раз (в идеале это должен прислать сервер)
-function generateWorld() {
-    const seed = 123; // Одинаковый для всех
-    let random = () => {
-        var x = Math.sin(seed++) * 10000;
-        return x - Math.floor(x);
-    };
-    for(let i=0; i<60; i++) {
+const myColor = `hsl(${Math.random()*360}, 80%, 50%)`;
+const myStroke = `hsl(${Math.random()*360}, 90%, 15%)`;
+
+let myPos = { 
+    x: 0, y: 0, 
+    angle: 0, hp: 100, atk: false, atkP: 0,
+    color: myColor, stroke: myStroke
+};
+
+let inventory = { wood: 0, stone: 0 };
+let moveDir = { x: 0, y: 0 };
+
+// ГЕНЕРАЦИЯ ПРИЯТНОЙ КАРТЫ
+function initWorld() {
+    // Очень редкие ресурсы (12 штук на всю карту)
+    for(let i=0; i<12; i++) {
         staticObjects.push({
-            x: (Math.random() - 0.5) * WORLD_SIZE,
-            y: (Math.random() - 0.5) * WORLD_SIZE,
+            x: (Math.random()-0.5)*(WORLD_SIZE-1000),
+            y: (Math.random()-0.5)*(WORLD_SIZE-1000),
             type: Math.random() > 0.5 ? 'tree' : 'stone',
-            size: 60 + Math.random() * 40
+            size: 120 + Math.random()*50
+        });
+    }
+    // Фоновые детали (трава и кочки)
+    for(let i=0; i<800; i++) {
+        deco.push({
+            x: (Math.random()-0.5)*WORLD_SIZE,
+            y: (Math.random()-0.5)*WORLD_SIZE,
+            type: Math.random() > 0.7 ? 'rock' : 'grass',
+            size: 10 + Math.random()*20
         });
     }
 }
-generateWorld();
+initWorld();
 
-let myPos = { x: 0, y: 0, color: `hsl(${Math.random()*360}, 70%, 60%)`, angle: 0, hp: 100, atk: false, atkP: 0 };
-let inventory = { wood: 0, stone: 0 };
-let camX = 0, camY = 0;
-let moveDir = { x: 0, y: 0 };
-const speed = 7;
+function safeSpawn() {
+    myPos.x = (Math.random()-0.5)*3000;
+    myPos.y = (Math.random()-0.5)*3000;
+    staticObjects.forEach(obj => {
+        if(Math.sqrt((obj.x-myPos.x)**2 + (obj.y-myPos.y)**2) < obj.size + 150) safeSpawn();
+    });
+}
+safeSpawn();
 
-// Fullscreen
+socket.on('connect', () => { document.getElementById('loading-screen').remove(); });
+socket.on('update', (sP) => {
+    players = sP;
+    for(let id in players) if(!renderPlayers[id]) renderPlayers[id] = {...players[id]};
+});
+
+// УПРАВЛЕНИЕ (Мгновенный отклик)
+const joy = document.getElementById("joystick-ui");
+const knob = document.getElementById("knob");
+let joyId = null;
+
+window.addEventListener('touchstart', (e) => {
+    for(let t of e.changedTouches) {
+        let r = joy.getBoundingClientRect();
+        if(t.clientX > r.left && t.clientX < r.right && t.clientY > r.top && t.clientY < r.bottom) joyId = t.identifier;
+    }
+});
+
+window.addEventListener('touchmove', (e) => {
+    for(let t of e.touches) if(t.identifier === joyId) {
+        let r = joy.getBoundingClientRect();
+        let dx = t.clientX - (r.left + 60), dy = t.clientY - (r.top + 60);
+        let d = Math.sqrt(dx*dx + dy*dy);
+        if(d > 50) { dx *= 50/d; dy *= 50/d; }
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+        moveDir = { x: dx/50, y: dy/50 };
+        myPos.angle = Math.atan2(dy, dx);
+    }
+}, {passive: false});
+
+window.addEventListener('touchend', (e) => {
+    for(let t of e.changedTouches) if(t.identifier === joyId) {
+        joyId = null; knob.style.transform = `translate(0,0)`; moveDir = { x: 0, y: 0 };
+    }
+});
+
 document.getElementById('fs-btn').onclick = () => {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen();
     else document.exitFullscreen();
 };
 
-// Атака
 const atkBtn = document.getElementById("attack-btn");
 atkBtn.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    if (!myPos.atk) {
-        myPos.atk = true;
-        myPos.atkP = 0;
-        checkHit();
-    }
+    if (!myPos.atk) { myPos.atk = true; myPos.atkP = -0.8; }
 });
 
 function checkHit() {
     staticObjects.forEach(obj => {
-        let dx = obj.x - myPos.x;
-        let dy = obj.y - myPos.y;
-        let dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < 150) {
-            if (obj.type === 'tree') inventory.wood++;
-            else inventory.stone++;
-            updateInv();
+        let d = Math.sqrt((obj.x-myPos.x)**2 + (obj.y-myPos.y)**2);
+        if (d < obj.size + 130) {
+            if (obj.type === 'tree') inventory.wood++; else inventory.stone++;
+            document.getElementById('inv-wood').innerText = inventory.wood;
+            document.getElementById('inv-stone').innerText = inventory.stone;
         }
     });
 }
 
-function updateInv() {
-    document.getElementById('inv-wood').innerText = inventory.wood;
-    document.getElementById('inv-stone').innerText = inventory.stone;
-}
-
-// Управление
-let joyTouchId = null;
-const joy = document.getElementById("joystick-ui");
-const knob = document.getElementById("knob");
-window.addEventListener('touchstart', (e) => {
-    for(let t of e.changedTouches) {
-        let r = joy.getBoundingClientRect();
-        if(t.clientX > r.left && t.clientX < r.right && t.clientY > r.top && t.clientY < r.bottom) joyTouchId = t.identifier;
-    }
-});
-window.addEventListener('touchmove', (e) => {
-    for(let t of e.touches) if(t.identifier === joyTouchId) {
-        let r = joy.getBoundingClientRect();
-        let dx = t.clientX - (r.left + 55), dy = t.clientY - (r.top + 55);
-        let dist = Math.sqrt(dx*dx + dy*dy);
-        if(dist > 45) { dx *= 45/dist; dy *= 45/dist; }
-        knob.style.transform = `translate(${dx}px, ${dy}px)`;
-        moveDir = { x: dx/45, y: dy/45 };
-        myPos.angle = Math.atan2(dy, dx);
-    }
-}, {passive: false});
-window.addEventListener('touchend', (e) => {
-    for(let t of e.changedTouches) if(t.identifier === joyTouchId) { joyTouchId = null; knob.style.transform = `translate(0,0)`; moveDir = { x: 0, y: 0 }; }
-});
-
-socket.on('update', (serverPlayers) => {
-    players = serverPlayers;
-    // Инициализируем новых игроков в renderPlayers
-    for (let id in players) {
-        if (!renderPlayers[id]) {
-            renderPlayers[id] = { ...players[id] };
-        }
-    }
-});
-
 function update() {
-    // Движение
+    // ПРЯМОЕ ПЕРЕМЕЩЕНИЕ БЕЗ СКОЛЬЖЕНИЯ
     let nx = myPos.x + moveDir.x * speed;
     let ny = myPos.y + moveDir.y * speed;
 
-    // Коллизии с границами квадрата
-    if (Math.abs(nx) < WORLD_SIZE/2 - 50) myPos.x = nx;
-    if (Math.abs(ny) < WORLD_SIZE/2 - 50) myPos.y = ny;
+    // Коллизия с объектами
+    let canMove = true;
+    staticObjects.forEach(obj => {
+        if(Math.sqrt((obj.x-nx)**2 + (obj.y-ny)**2) < obj.size + 60) canMove = false;
+    });
 
-    // Анимация атаки
-    if (myPos.atk) {
-        myPos.atkP += 0.15;
-        if (myPos.atkP > 1) { myPos.atk = false; myPos.atkP = 0; }
+    if(canMove) {
+        if (Math.abs(nx) < WORLD_SIZE/2 - 100) myPos.x = nx;
+        if (Math.abs(ny) < WORLD_SIZE/2 - 100) myPos.y = ny;
     }
 
-    // ИНТЕРПОЛЯЦИЯ: Плавно двигаем всех игроков к их реальным позициям
+    if (myPos.atk) {
+        myPos.atkP += 0.12;
+        if (myPos.atkP >= 0.3 && myPos.atkP <= 0.45) checkHit();
+        if (myPos.atkP > 1.5) { myPos.atk = false; myPos.atkP = 0; }
+    }
+
+    // Плавность врагов (интерполяция)
     for (let id in renderPlayers) {
         if (players[id]) {
-            renderPlayers[id].x += (players[id].x - renderPlayers[id].x) * 0.2;
-            renderPlayers[id].y += (players[id].y - renderPlayers[id].y) * 0.2;
-            renderPlayers[id].angle += (players[id].angle - renderPlayers[id].angle) * 0.2;
-            renderPlayers[id].atk = players[id].atk;
-            renderPlayers[id].atkP = players[id].atkP;
-            renderPlayers[id].hp = players[id].hp;
-        } else {
-            delete renderPlayers[id];
-        }
+            let p = players[id], rp = renderPlayers[id];
+            rp.x += (p.x - rp.x) * 0.25;
+            rp.y += (p.y - rp.y) * 0.25;
+            rp.angle += (p.angle - rp.angle) * 0.25;
+            rp.atk = p.atk; rp.atkP = p.atkP;
+            rp.color = p.color; rp.stroke = p.stroke;
+        } else delete renderPlayers[id];
     }
 
-    camX += (myPos.x - camX) * 0.1;
-    camY += (myPos.y - camY) * 0.1;
-
-    socket.emit('move', myPos);
+    socket.emit('move', { x: myPos.x, y: myPos.y, angle: myPos.angle, atk: myPos.atk, atkP: myPos.atkP, color: myPos.color, stroke: myPos.stroke });
     draw();
     requestAnimationFrame(update);
 }
 
 function draw() {
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    ctx.fillStyle = "#111"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
+    // КАМЕРА СТАБИЛЬНАЯ (без задержки)
     ctx.translate(canvas.width/2, canvas.height/2);
-    ctx.scale(0.35, 0.35); // Камера еще дальше
-    ctx.translate(-camX, -camY);
+    ctx.scale(0.25, 0.25); // Еще выше в небо
+    ctx.translate(-myPos.x, -myPos.y);
 
-    // Рисуем квадратную землю
-    ctx.fillStyle = "#2e4d2e";
+    // ТЕКСТУРА ЗЕМЛИ
+    ctx.fillStyle = "#1b2b1b"; // Глубокий лесной цвет
     ctx.fillRect(-WORLD_SIZE/2, -WORLD_SIZE/2, WORLD_SIZE, WORLD_SIZE);
     
-    // Сетка
-    ctx.strokeStyle = "rgba(0,0,0,0.1)";
-    for(let i = -WORLD_SIZE/2; i <= WORLD_SIZE/2; i+=200) {
-        ctx.beginPath(); ctx.moveTo(i, -WORLD_SIZE/2); ctx.lineTo(i, WORLD_SIZE/2); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(-WORLD_SIZE/2, i); ctx.lineTo(WORLD_SIZE/2, i); ctx.stroke();
+    // Текстурный шум (пятна земли)
+    ctx.fillStyle = "#162416";
+    for(let i=0; i<200; i++) {
+        ctx.beginPath();
+        ctx.arc((i*777)%WORLD_SIZE - WORLD_SIZE/2, (i*123)%WORLD_SIZE - WORLD_SIZE/2, 300, 0, Math.PI*2);
+        ctx.fill();
     }
+
+    // Декор
+    deco.forEach(d => {
+        ctx.fillStyle = d.type === 'grass' ? "#2d4a2d" : "#333";
+        ctx.fillRect(d.x, d.y, d.size, d.size);
+    });
 
     // Ресурсы
     staticObjects.forEach(obj => {
-        ctx.fillStyle = obj.type === 'tree' ? "#1b5e20" : "#546e7a";
+        ctx.fillStyle = obj.type === 'tree' ? "#0a330a" : "#444";
         ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.size, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 10; ctx.stroke();
+        ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineWidth = 15; ctx.stroke();
     });
 
-    // Игроки (используем интерполированные данные)
     for(let id in renderPlayers) drawPlayer(renderPlayers[id], id === socket.id);
 
     ctx.restore();
@@ -238,49 +272,48 @@ function drawPlayer(p, isMe) {
     ctx.translate(p.x, p.y);
     
     // HP
-    ctx.fillStyle = "black"; ctx.fillRect(-50, -100, 100, 12);
-    ctx.fillStyle = "#ff4444"; ctx.fillRect(-50, -100, (p.hp/100)*100, 12);
+    ctx.fillStyle = "black"; ctx.fillRect(-80, -140, 160, 20);
+    ctx.fillStyle = "#4caf50"; ctx.fillRect(-80, -140, (p.hp/100)*160, 20);
 
     ctx.rotate(p.angle);
     
-    // --- МОЛОТ В ДВУХ РУКАХ (Горизонтально) ---
+    // КРУТОЙ МОЛОТ
     ctx.save();
-    let swing = p.atk ? Math.sin(p.atkP * Math.PI) * 1.2 : 0;
-    ctx.translate(40 + swing*20, 0); // Движение вперед при ударе
-
-    // Длинная рукоять
+    let r = 0, off = 0;
+    if(p.atk) {
+        if(p.atkP < 0) r = p.atkP * 1.5;
+        else { r = Math.sin(p.atkP * Math.PI) * 2; off = Math.sin(p.atkP * Math.PI) * 50; }
+    }
+    ctx.rotate(r);
+    // Рукоять
     ctx.fillStyle = "#4e342e";
-    ctx.fillRect(-10, -50, 10, 100); 
-    // Тяжелый боек
-    ctx.fillStyle = "#37474f";
-    ctx.fillRect(-25, -45, 40, 25); 
-    ctx.fillRect(-25, 20, 40, 25);
+    ctx.fillRect(off + 15, -100, 30, 200); 
+    // Боек
+    ctx.fillStyle = "#212121";
+    ctx.fillRect(off - 30, -110, 120, 70);
+    ctx.fillRect(off - 30, 40, 120, 70);
     ctx.restore();
 
     // Тело
     ctx.fillStyle = p.color;
-    ctx.beginPath(); ctx.arc(0, 0, 50, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = isMe ? "white" : "black"; ctx.lineWidth = 6; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 85, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = p.stroke; ctx.lineWidth = 15; ctx.stroke();
     
-    // Руки (держат молот)
-    ctx.fillStyle = p.color;
-    ctx.beginPath(); ctx.arc(35, -25, 15, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(35, 25, 15, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    // Руки
+    ctx.beginPath(); ctx.arc(70, -50, 30, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(70, 50, 30, 0, Math.PI*2); ctx.fill(); ctx.stroke();
 
     ctx.restore();
 }
 
 function drawMinimap() {
-    mCanvas.width = 130; mCanvas.height = 130;
-    mCtx.fillStyle = "#1a331a"; mCtx.fillRect(0,0,130,130);
-    
+    mCanvas.width = 140; mCanvas.height = 140;
+    mCtx.fillStyle = "rgba(0,0,0,0.8)"; mCtx.beginPath(); mCtx.arc(70, 70, 70, 0, Math.PI*2); mCtx.fill();
     for(let id in players) {
         let p = players[id];
-        // Преобразуем координаты квадрата в круг миникарты
-        let mx = ((p.x + WORLD_SIZE/2) / WORLD_SIZE) * 130;
-        let my = ((p.y + WORLD_SIZE/2) / WORLD_SIZE) * 130;
-        mCtx.fillStyle = (id === socket.id) ? "white" : "#ff4444";
-        mCtx.beginPath(); mCtx.arc(mx, my, 4, 0, Math.PI*2); mCtx.fill();
+        let mx = ((p.x + WORLD_SIZE/2) / WORLD_SIZE) * 140, my = ((p.y + WORLD_SIZE/2) / WORLD_SIZE) * 140;
+        mCtx.fillStyle = (id === socket.id) ? "white" : "red";
+        mCtx.beginPath(); mCtx.arc(mx, my, 5, 0, Math.PI*2); mCtx.fill();
     }
 }
 update();

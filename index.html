@@ -1,19 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>War Castle: Nature & Combat</title>
+    <title>War Castle: Multiplayer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { margin: 0; background: #2d4c2d; overflow: hidden; font-family: sans-serif; touch-action: none; }
+        body { margin: 0; background: #2d4c2d; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: none; }
         canvas { display: block; }
+
+        /* UI Элементы /
+        #ui-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; / Чтобы UI не блокировал клики по канвасу, если надо */
+            color: white; text-shadow: 1px 1px 2px black;
+            padding: 15px; box-sizing: border-box; z-index: 100;
+        }
+        .stats { font-size: 18px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 5px; display: inline-block; }
 
         #joystick-ui {
             position: fixed; bottom: 40px; left: 40px;
             width: 100px; height: 100px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 50%; border: 2px solid rgba(255,255,255,0.2);
-            z-index: 100;
+            z-index: 100; pointer-events: auto;
         }
         #knob {
             position: absolute; top: 30px; left: 30px;
@@ -23,27 +32,34 @@
 
         #attack-btn {
             position: fixed; bottom: 50px; right: 50px;
-            width: 90px; height: 90px;
+            width: 100px; height: 100px;
             background: rgba(255, 50, 50, 0.6);
             border: 5px solid white; border-radius: 50%;
             color: white; font-weight: bold; display: flex;
-            align-items: center; justify-content: center; z-index: 100;
+            align-items: center; justify-content: center; 
+            z-index: 100; pointer-events: auto;
+            user-select: none; -webkit-user-select: none;
         }
 
         #settings-panel {
-            position: fixed; top: 10px; right: 10px; z-index: 200;
+            position: fixed; top: 10px; right: 10px; z-index: 200; pointer-events: auto;
         }
-        .btn { background: rgba(0,0,0,0.6); color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; }
+        .btn { background: rgba(0,0,0,0.6); color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
+
+<div id="ui-layer">
+    <div class="stats">Игроков в сети: <span id="player-count">1</span></div><br>
+    <div class="stats" style="margin-top: 5px;">Координаты: X: <span id="pos-x">0</span> Y: <span id="pos-y">0</span></div>
+</div>
 
 <div id="settings-panel">
     <button class="btn" onclick="toggleFS()">ПОЛНЫЙ ЭКРАН</button>
 </div>
 
 <div id="joystick-ui"><div id="knob"></div></div>
-<div id="attack-btn" ontouchstart="handleAttack()">УДАР</div>
+<div id="attack-btn" ontouchstart="handleAttack(event)">УДАР</div>
 
 <canvas id="gameCanvas"></canvas>
 
@@ -52,56 +68,94 @@ const socket = io("https://war-castle.onrender.com");
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// Состояние игрока
 let myId = null;
-const players = {};
-let myPos = { x: 0, y: 0, color: 'hsl('+Math.random()*360+', 70%, 60%)', angle: 0 };
+let players = {}; // Здесь храним всех игроков
+let myPos = { 
+    x: Math.random() * 500, 
+    y: Math.random() * 500, 
+    color: 'hsl('+Math.random()*360+', 70%, 60%)', 
+    angle: 0 
+};
+
 let moveDir = { x: 0, y: 0 };
 const speed = 5;
-const viewScale = 0.6; // Отдаление камеры
+const viewScale = 0.6;
 
-// Состояние боя
-let lastHand = 'left'; // Какая рука била последней
+// Бой
+let lastHand = 'left';
 let atkProgress = 0; 
 let isAtk = false;
 
-// Окружение
+// Окружение (сделаем статичным сидом, чтобы у всех было одинаково, либо сервер должен присылать)
 const objects = [];
+const worldSize = 4000;
 for(let i=0; i<100; i++) {
     objects.push({
-        x: (Math.random()-0.5)*4000,
-        y: (Math.random()-0.5)*4000,
+        x: (Math.random()-0.5)*worldSize,
+        y: (Math.random()-0.5)*worldSize,
         type: Math.random() > 0.6 ? 'tree' : (Math.random() > 0.5 ? 'rock' : 'bush'),
         size: 30 + Math.random()*40
     });
 }
+
+// Работа с сокетами
+socket.on('connect', () => {
+    myId = socket.id;
+});
+
+socket.on('update', (serverPlayers) => {
+    players = serverPlayers;
+    document.getElementById('player-count').innerText = Object.keys(players).length;
+});
 
 function toggleFS() {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen();
     else document.exitFullscreen();
 }
 
-function handleAttack() {
+function handleAttack(e) {
+    if (e) e.preventDefault(); // Предотвращаем зум/скролл
     if (isAtk) return;
     isAtk = true;
     atkProgress = 0;
     lastHand = (lastHand === 'left') ? 'right' : 'left';
 }
 
-// Джойстик
+// Джойстик с поддержкой мультитача
 const joy = document.getElementById("joystick-ui");
 const knob = document.getElementById("knob");
-let joyActive = false;
+let joyTouchId = null;
 
-joy.addEventListener('touchstart', (e) => { joyActive = true; moveJoy(e); });
-window.addEventListener('touchmove', (e) => { if(joyActive) moveJoy(e); });
-window.addEventListener('touchend', () => {
-    joyActive = false;
-    knob.style.transform = `translate(0px, 0px)`;
-    moveDir = { x: 0, y: 0 };
+joy.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    joyTouchId = e.changedTouches[0].identifier;
+    moveJoy(e);
 });
 
-function moveJoy(e) {
-    const t = e.touches[0];
+window.addEventListener('touchmove', (e) => {
+    if (joyTouchId !== null) {
+        for (let i = 0; i < e.touches.length; i++) {
+            if (e.touches[i].identifier === joyTouchId) {
+                moveJoy(e, i);
+            }
+        }
+    }
+}, { passive: false });
+
+window.addEventListener('touchend', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === joyTouchId) {
+            joyTouchId = null;
+            knob.style.transform = `translate(0px, 0px)`;
+            moveDir = { x: 0, y: 0 };
+        }
+    }
+});
+
+function moveJoy(e, index = 0) {
+    const t = index === 0 ? e.touches[0] : e.touches[index];
+    if (!t) return;
     const r = joy.getBoundingClientRect();
     const cx = r.left + r.width/2;
     const cy = r.top + r.height/2;
@@ -113,75 +167,57 @@ function moveJoy(e) {
     if(dist > 5) myPos.angle = Math.atan2(dy, dx);
 }
 
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+function resize() { 
+    canvas.width = window.innerWidth; 
+    canvas.height = window.innerHeight; 
+}
 window.onresize = resize; resize();
 
 function update() {
+    // Движение
     myPos.x += moveDir.x * speed;
     myPos.y += moveDir.y * speed;
     
+    // Анимация удара
     if(isAtk) {
         atkProgress += 0.25;
         if(atkProgress > Math.PI) { isAtk = false; atkProgress = 0; }
     }
 
-    socket.emit('move', { x: myPos.x, y: myPos.y, angle: myPos.angle, atk: isAtk, hand: lastHand, atkP: atkProgress });
+    // Обновляем UI координат
+    document.getElementById('pos-x').innerText = Math.floor(myPos.x);
+    document.getElementById('pos-y').innerText = Math.floor(myPos.y);
+
+    // Отправка данных на сервер
+    socket.emit('move', { 
+        x: myPos.x, 
+        y: myPos.y, 
+        angle: myPos.angle, 
+        color: myPos.color,
+        atk: isAtk, 
+        hand: lastHand, 
+        atkP: atkProgress 
+    });
+
     draw();
     requestAnimationFrame(update);
 }
 
 function draw() {
-    ctx.fillStyle = "#2d4c2d"; // Зеленая трава
+    ctx.fillStyle = "#2d4c2d";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
+    // Центрируем камеру на себе
     ctx.translate(canvas.width/2, canvas.height/2);
     ctx.scale(viewScale, viewScale);
     ctx.translate(-myPos.x, -myPos.y);
 
-    // Рисуем объекты окружения
+    // Окружение
     objects.forEach(obj => {
-        if (obj.type === 'tree') {
-            ctx.fillStyle = "#1a2e1a"; ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.size, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#254125"; ctx.beginPath(); ctx.arc(obj.x-5, obj.y-5, obj.size*0.7, 0, Math.PI*2); ctx.fill();
-        } else if (obj.type === 'rock') {
-            ctx.fillStyle = "#555"; ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.size*0.5, 0, Math.PI*2); ctx.fill();
-        } else {
-            ctx.fillStyle = "#3d663d"; ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.size*0.4, 0, Math.PI*2); ctx.fill();
-        }
+        ctx.fillStyle = obj.type === 'tree' ? "#1a2e1a" : (obj.type === 'rock' ? "#555" : "#3d663d");
+        ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.size, 0, Math.PI*2); ctx.fill();
     });
 
-    // Отрисовка игрока (себя)
-    drawChar(myPos.x, myPos.y, myPos.color, myPos.angle, isAtk, lastHand, atkProgress);
-
-    ctx.restore();
-}
-
-function drawChar(x, y, color, angle, attacking, hand, progress) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-
-    let leftAtk = (attacking && hand === 'left') ? Math.sin(progress)*25 : 0;
-    let rightAtk = (attacking && hand === 'right') ? Math.sin(progress)*25 : 0;
-
-    ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 3;
+    // Рисуем всех игроков из объекта players
     
-    // Руки
-    ctx.fillStyle = color;
-    // Левая
-    ctx.beginPath(); ctx.arc(20 + leftAtk, -25, 12, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-    // Правая
-    ctx.beginPath(); ctx.arc(20 + rightAtk, 25, 12, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-
-    // Тело
-    ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = "white"; ctx.stroke();
-
-    ctx.restore();
-}
-
-update();
-</script>
-</body>
-</html>
